@@ -3,14 +3,14 @@
 module.exports = (function () {
     var _page, _phantom;
 
-    var getPage = function () {
+    var getPage = function (url) {
         return require('phantom').create().then(function (phantom) {
                 _phantom = phantom;
                 return phantom.createPage();
             })
             .then(function (page) {
                 _page = page;
-                return page.open('http://auto.ru/cars/honda/accord/7156482/all/?listing=listing&sort_offers=cr_date-DESC&top_days=off&currency=RUR&output_type=list&km_age_to=100+000+%D0%BA%D0%BC&page_num_offers=1')
+                return page.open(url)
             })
             .then(function () {
                 return _page;
@@ -32,13 +32,35 @@ module.exports = (function () {
 
     var parsePage = function (page) {
         return page.evaluate(function () {
-            var list = document.querySelectorAll('tbody.listing-item');
-            var i, length, item, output = [];
+            var list = document.querySelectorAll('tbody.listing-item'),
+                urls = document.querySelectorAll('.listing-item__link');
+            var i, length, item, itemUrl, output = [];
             length = list.length;
             for (i = 0; i < length; i++) {
                 item = list[i];
-                if(item.dataset && item.dataset.bem) {
-                    output.push(JSON.parse(item.dataset.bem));
+                if (item.dataset && item.dataset.bem) {
+                    itemUrl = item.querySelector('.listing-item__link').getAttribute('href');
+                    item = JSON.parse(item.dataset.bem);
+                    item = item['stat']['statParams'];
+
+                    output.push({
+                        id: parseInt(item['card_id'], 10),
+                        url: itemUrl,
+                        created: new Date(item['card_date_created']),
+                        updated: new Date(item['card_date_updated']),
+                        mark: item['card_mark'],
+                        model: item['card_model'],
+                        generation: item['card_generation'],
+                        gearbox: item['card_gearbox'],
+                        year: item['card_year'],
+                        owners: item['card_owners_count'],
+                        price: item['card_price'],
+                        run: item['card_run'],
+                        condition: item['card_state'],
+                        vin: item['card_vin'] === 'true',
+                        checked: item['card_checked'] === 'true',
+                        userId: parseInt(item['card_owner_uid'], 10)
+                    });
                 }
             }
             return output;
@@ -49,8 +71,6 @@ module.exports = (function () {
             // Step 3. Parse the info
             // Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
             // Step 5. Analyze the info, save results to DB, send notifications, etc.
-
-            console.log(list[10]);
             return list;
         });
     };
