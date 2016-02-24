@@ -1,19 +1,24 @@
 "use strict";
 
 module.exports = (function () {
+    var db = require('./db.js');
+
     var _page, _phantom;
 
-    var getPage = function (url) {
-        return require('phantom').create().then(function (phantom) {
+    var process = function (url) {
+        return require('phantom').create()
+            //create new Phantom page
+            .then(function (phantom) {
                 _phantom = phantom;
                 return phantom.createPage();
             })
+            //open URL
             .then(function (page) {
                 _page = page;
-                return page.open(url)
             })
+            //parse the cars from URL
             .then(function () {
-                return _page;
+                return processPages(url);
             })
             .catch(function (err) {
                 console.error("Caught Err:", err);
@@ -30,8 +35,59 @@ module.exports = (function () {
         }
     };
 
-    var parsePage = function (page) {
-        return page.evaluate(function () {
+    /**
+     * Processing the page. Will call next page if found.
+     * process next pages
+     * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
+     * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
+     * Step 3. Parse the info
+     * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
+     * Step 5. Analyze the info, save results to DB, send notifications, etc.
+     */
+    var totalItems = [],
+        currentPage = 1;
+    var processPages = function (url) {
+        return _page.open(url)
+            .then(parsePage)
+            .then(function (items) {
+                console.log("Got %s items", items.length);
+                totalItems = totalItems.concat(items);
+                return _page.evaluate(function () {
+                    var pager = document.querySelector('.pager');
+                    if (pager && pager.dataset.bem) {
+                        pager = JSON.parse(pager.dataset.bem).pager;
+                        currentPage = pager.current;
+                        //we have more pages to go, create new URL and open it
+                        if (currentPage < pager.max) {
+                            return pager;
+                        }
+                    }
+                    return false;
+
+                });
+            })
+            .then(function (pager) {
+                console.log("Next Page: ", pager);
+                if (pager) {
+                    return promiseTimeout(5000).then(function () {
+                        return processPages(createUrl(url, pager.current + 1));
+                    });
+                }
+                else {
+                    return totalItems;
+                }
+            });
+    };
+
+    var createUrl = function (url, page) {
+        url = url.split('&page_num_offers');
+        url = url[0];
+        url += '&page_num_offers=' + page;
+        return url;
+    };
+
+    var parsePage = function () {
+        return _page.evaluate(function () {
             var list = document.querySelectorAll('tbody.listing-item'),
                 urls = document.querySelectorAll('.listing-item__link');
             var i, length, item, itemUrl, output = [];
@@ -64,21 +120,17 @@ module.exports = (function () {
                 }
             }
             return output;
-        }).then(function (list) {
-            //process next pages
-            //TODO: Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
-            // Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
-            // Step 3. Parse the info
-            // Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
-            // Step 5. Analyze the info, save results to DB, send notifications, etc.
-            return list;
+        });
+    };
+
+    var promiseTimeout = function (time) {
+        return new Promise(function (resolve) {
+            setTimeout(resolve, time);
         });
     };
 
     return {
-        getPage: getPage,
-        closePage: closePage,
-        parsePage: parsePage
+        process: process
     };
 
 })();
