@@ -18,6 +18,7 @@ module.exports = (function () {
                         //append linkId to each of the items
                         items.forEach(function (item) {
                             item['linkId'] = link.id;
+                            item['sequenceChecked'] = link.sequenceId;
                         });
                         return db.saveCars(items).then(function (newOnesArray) {
                             console.log("Query received %s new items:", newOnesArray.length, newOnesArray);
@@ -32,6 +33,7 @@ module.exports = (function () {
                             //append linkId to each of the items
                             items.forEach(function (item) {
                                 item['linkId'] = link.id;
+                                item['sequenceChecked'] = link.sequenceId;
                             });
                             return db.saveCars(items).then(function (newOnesArray) {
                                 console.log("Total of %s items received in the query", newOnesArray.length);

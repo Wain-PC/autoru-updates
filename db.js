@@ -26,6 +26,10 @@ module.exports = (function () {
             models.link = sequelize.define('link', {
                 link: {
                     type: Sequelize.STRING
+                },
+                sequenceId: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 0
                 }
             });
 
@@ -102,9 +106,9 @@ module.exports = (function () {
                     type: Sequelize.BOOLEAN
                 },
 
-                archived: {
-                    type: Sequelize.BOOLEAN,
-                    defaultValue: false
+                sequenceChecked: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 0
                 }
             });
 
@@ -138,8 +142,11 @@ module.exports = (function () {
                     }
                 }
             ).then(function (foundLink) {
+                //if the link is present, increment the sequenceID by one
                 if (foundLink) {
-                    return foundLink.get();
+                    return foundLink.increment({sequenceId: 1}).then(function (fl) {
+                        return fl.get();
+                    });
                 }
                 return null;
             })
@@ -173,13 +180,16 @@ module.exports = (function () {
         saveCar = function (carInstance) {
             return models.car.findOne({
                 where: {
-                    id: carInstance.id
+                    id: carInstance.id,
+                    linkId: carInstance.linkId
                 }
             }).then(function (savedCar) {
                 if (savedCar) {
-                    //tell that the car has been already saved
-                    //console.log('Got already saved car:', savedCar.dataValues.id);
-                    return null;
+                    //update the car's sequenceId
+                    savedCar.sequenceChecked = carInstance.sequenceChecked;
+                    return savedCar.save().then(function () {
+                        return null;
+                    });
                 }
                 else {
                     //save new car

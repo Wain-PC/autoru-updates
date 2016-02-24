@@ -67,14 +67,13 @@ module.exports = (function () {
                     });
                 })
                 .then(function (pager) {
-                    console.log("Next Page: ", pager);
                     if (pager) {
                         return promiseTimeout(1000).then(function () {
                             return processPages(createUrl(url, pager.current + 1));
                         });
                     }
                     else {
-                        console.log(totalItems);
+                        console.log("Total:", totalItems.length);
                         return totalItems;
                     }
                 });
