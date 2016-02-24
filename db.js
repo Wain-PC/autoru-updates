@@ -39,9 +39,13 @@ module.exports = (function () {
                     primaryKey: true
                 },
 
-                url: {
-                    type: Sequelize.STRING(1000),
+                linkId: {
+                    type: Sequelize.INTEGER,
                     primaryKey: true
+                },
+
+                url: {
+                    type: Sequelize.STRING(1000)
                 },
 
                 created: {
