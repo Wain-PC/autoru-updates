@@ -2,12 +2,16 @@
 
 module.exports = (function () {
     var Sequelize = require("sequelize"),
+        processor = require('./processor.js'),
         sequelize,
         dbPath = './database_test.sqlite',
         models = {
             car: null,
             link: null
         },
+        runningJob = null,
+        queueCheckInterval = 30000,
+        queueCheckIntervalTimer = null,
 
         connect = function () {
             return sequelize = new Sequelize('autoru', 'root', null, {
@@ -30,6 +34,15 @@ module.exports = (function () {
                 sequenceId: {
                     type: Sequelize.INTEGER,
                     defaultValue: 0
+                },
+                runPeriod: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 15
+                },
+                nextRun: {
+                    type: Sequelize.DATE,
+                    allowNull: true,
+                    defaultValue: null
                 }
             });
 
@@ -128,16 +141,22 @@ module.exports = (function () {
         },
 
 
-        createLink = function (url) {
+        getLink = function (url) {
             //create without a check
-            return models.link.create({
-                link: url
-            }).then(function (createdLink) {
-                return createdLink.get({plain: true});
+            return models.link.findOrCreate({
+                where: {
+                    link: url
+                },
+                defaults: {
+                    link: url
+                }
+
+            }).then(function (links) {
+                return links[0];
             });
         },
 
-        hasLink = function (url) {
+        incrementLink = function (url) {
             //this actually doesn't check for the same urls for different users, if the system will grow
             return models.link.findOne(
                 {
@@ -149,10 +168,11 @@ module.exports = (function () {
                 //if the link is present, increment the sequenceID by one
                 if (foundLink) {
                     return foundLink.increment({sequenceId: 1}).then(function (fl) {
-                        return fl.get();
+                        return fl;
                     });
                 }
-                return null;
+                //create if not found
+                return getLink(url);
             })
         },
 
@@ -172,14 +192,13 @@ module.exports = (function () {
                 var i, length = promisesResultsArray.length, outArray = [];
                 //this will return an array containing only CHANGED values
                 for (i = 0; i < length; i++) {
-                    if (promisesResultsArray[i]) {
-                        outArray.push(promisesResultsArray[i].get())
+                    if (promisesResultsArray[i].sequenceId !== 0) {
+                        outArray.push(promisesResultsArray[i].get());
                     }
                 }
                 return outArray;
             });
         },
-
 
         saveCar = function (carInstance) {
             return models.car.findOne({
@@ -203,14 +222,86 @@ module.exports = (function () {
                     });
                 }
             });
+        },
+
+        initQueue = function (purgeDB) {
+            //Step 1. Start the DB
+            return startup(purgeDB).then(function () {
+                //Step 2. Get all links
+                models.link.findAll()
+                    .then(function (links) {
+                        //Step 3. Process each link and add nearest available execution time
+                        //let's assume the execution takes 30 sec.
+                        var now = new Date(), promisesArray = [];
+                        console.log("Found %s links on startup:", links.length);
+                        links.forEach(function (link, index) {
+                            if(!link) return;
+                            link.nextRun = new Date(now.getTime() + index * queueCheckInterval);
+                            promisesArray.push(link.save());
+                        });
+                        return Promise.all(promisesArray);
+                    })
+                    .then(function () {
+                        queueCheckIntervalTimer = setInterval(checkQueue, queueCheckInterval);
+                        return checkQueue();
+                    });
+
+            });
+        },
+
+        startQueue = function () {
+            console.log("Queue started");
+            queueCheckIntervalTimer = setInterval(checkQueue, queueCheckInterval);
+            checkQueue();
+            return queueCheckIntervalTimer;
+        },
+
+        stopQueue = function () {
+            console.log("Queue stopped");
+            return clearInterval(queueCheckIntervalTimer);
+        },
+
+        checkQueue = function () {
+            var now = new Date().getTime();
+                 models.link.findOne({
+                    order: [['nextRun', 'DESC']]
+                }).then(function (link) {
+                     //if the queue is empty, do nothing
+                     if(!link) {
+                         console.log("Queue seems to be empty");
+                         return false;
+                     }
+
+                     //if the time has come to execute the item, run in
+                    if(link.nextRun.getTime() < now.getTime) {
+                        return executeQueueItem(link);
+                    }
+                     return false;
+                });
+        },
+
+        executeQueueItem = function (link) {
+            if(!link || !link.id) {
+                return false;
+            }
+            if (!runningJob) {
+                runningJob = link.id;
+                return processor.processUrl(link.url)
+                    .then(function () {
+                        runningJob = false;
+                        return checkQueue();
+                    });
+            }
         };
 
     return {
         startup: startup,
         saveCars: saveCars,
-        saveCar: saveCar,
-        createLink: createLink,
-        hasLink: hasLink
+        incrementLink: incrementLink,
+        initQueue: initQueue,
+        checkQueue: checkQueue,
+        startQueue: startQueue,
+        stopQueue: stopQueue
     };
 
 })();
