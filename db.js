@@ -192,7 +192,7 @@ module.exports = (function () {
                 var i, length = promisesResultsArray.length, outArray = [];
                 //this will return an array containing only CHANGED values
                 for (i = 0; i < length; i++) {
-                    if (promisesResultsArray[i].sequenceId !== 0) {
+                    if (promisesResultsArray[i].sequenceChecked !== 0) {
                         outArray.push(promisesResultsArray[i].get());
                     }
                 }
@@ -210,9 +210,7 @@ module.exports = (function () {
                 if (savedCar) {
                     //update the car's sequenceId
                     savedCar.sequenceChecked = carInstance.sequenceChecked;
-                    return savedCar.save().then(function () {
-                        return null;
-                    });
+                    return savedCar.save();
                 }
                 else {
                     //save new car
