@@ -37,7 +37,7 @@ module.exports = (function () {
                     defaultValue: 15
                 },
                 nextRun: {
-                    type: Sequelize.DATE,
+                    type: Sequelize.DATE
                 }
             });
 
@@ -140,9 +140,13 @@ module.exports = (function () {
             });
 
             //define many-to-one relationship
-            models.car.belongsTo(models.link);
+            models.car.belongsTo(models.link, {
+                onDelete: 'cascade'
+            });
             models.car.belongsTo(models.sequence);
-            models.sequence.belongsTo(models.link);
+            models.sequence.belongsTo(models.link, {
+                onDelete: 'cascade'
+            });
 
             return Promise.all([models.link.sync({force: !!withClear}), models.car.sync({force: !!withClear}), models.sequence.sync({force: !!withClear})]);
         },
@@ -355,28 +359,43 @@ module.exports = (function () {
             }
         },
 
-        runItemQueuePass = function (url) {
-            return parser.process(url, getLink, saveCars)
+        moveItemToQueueFront = function (link) {
+            if (!link || !link.id) {
+                return false;
+            }
+
+            link.nextRun = new Date();
+            return link.save();
+        },
+
+        runLinkById = function (linkId, force) {
+            return models.link.findOne({
+                where: {
+                    id: linkId
+                }
+            }).then(moveItemToQueueFront)
+                .then(filterLinkOutput);
+        },
+
+        runLinkByUrl = function (linkUrl) {
+            return models.link.findOne({
+                where: {
+                    link: linkUrl
+                }
+            }).then(moveItemToQueueFront)
+                .then(filterLinkOutput)
         },
 
         addQueueItem = function (url) {
             return createLink(url)
-                .then(function (link) {
-                    return {
-                        id: link.id,
-                        url: link.link
-                    };
-                })
+                .then(filterLinkOutput);
         },
 
-        removeQueueItem = function (url) {
-            return createLink(url)
-                .then(function (link) {
-                    return {
-                        id: link.id,
-                        url: link.link
-                    };
-                })
+        filterLinkOutput = function (link) {
+            return {
+                id: link.id,
+                url: link.link
+            };
         };
 
     return {
@@ -387,7 +406,9 @@ module.exports = (function () {
         checkQueue: checkQueue,
         startQueue: startQueue,
         stopQueue: stopQueue,
-        addQueueItem: addQueueItem
+        addQueueItem: addQueueItem,
+        runLinkById: runLinkById,
+        runLinkByUrl: runLinkByUrl
     };
 
 })();

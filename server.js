@@ -31,6 +31,21 @@ router.get('/add', function(req, res) {
     }
 });
 
+
+router.get('/update/', function(req, res) {
+    var id = decodeURIComponent(req.query.id);
+    if(id) {
+        return db.runLinkById(id).then(function (result) {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+        });
+    }
+    else {
+        res.setHeader('Content-Type', 'text/plain');
+        res.end('NO_URL_GIVEN');
+    }
+});
+
 // more routes for our API will happen here
 
 // REGISTER OUR ROUTES -------------------------------
@@ -39,7 +54,7 @@ app.use('/api', router);
 
 // START THE SERVER
 // =============================================================================
-db.startup(true).then(function () {
+db.startup().then(function () {
     app.listen(port);
     console.log('Magic happens on port ' + port);
 });
