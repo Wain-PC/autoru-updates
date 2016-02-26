@@ -106,7 +106,10 @@ module.exports = (function () {
                 for (i = 0; i < length; i++) {
                     item = list[i];
                     if (item.dataset && item.dataset.bem) {
-                        itemUrl = item.querySelector('.listing-item__link').getAttribute('href');
+                        itemUrl = item.querySelector('.listing-item__link');
+                        if(itemUrl) {
+                            itemUrl = itemUrl.getAttribute('href');
+                        }
                         item = JSON.parse(item.dataset.bem);
                         item = item['stat']['statParams'];
 
