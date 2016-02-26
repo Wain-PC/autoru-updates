@@ -2,7 +2,7 @@
 
 module.exports = (function () {
     var Sequelize = require("sequelize"),
-        processor = require('./processor.js'),
+        parser = require('./parser.js'),
         sequelize,
         dbPath = './database_test.sqlite',
         models = {
@@ -22,7 +22,8 @@ module.exports = (function () {
                     min: 0,
                     idle: 10000
                 },
-                storage: dbPath
+                storage: dbPath,
+                logging: false
             });
         },
 
@@ -31,18 +32,27 @@ module.exports = (function () {
                 link: {
                     type: Sequelize.STRING
                 },
-                sequenceId: {
-                    type: Sequelize.INTEGER,
-                    defaultValue: 0
-                },
                 runPeriod: {
                     type: Sequelize.INTEGER,
                     defaultValue: 15
                 },
                 nextRun: {
                     type: Sequelize.DATE,
-                    allowNull: true,
-                    defaultValue: null
+                }
+            });
+
+            models.sequence = sequelize.define('sequence', {
+                carsAdded: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 0
+                },
+                carsRemoved: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 0
+                },
+                carsNotChanged: {
+                    type: Sequelize.INTEGER,
+                    defaultValue: 0
                 }
             });
 
@@ -123,7 +133,7 @@ module.exports = (function () {
                     type: Sequelize.BOOLEAN
                 },
 
-                sequenceChecked: {
+                sequenceLastChecked: {
                     type: Sequelize.INTEGER,
                     defaultValue: 0
                 }
@@ -131,8 +141,10 @@ module.exports = (function () {
 
             //define many-to-one relationship
             models.car.belongsTo(models.link);
+            models.car.belongsTo(models.sequence);
+            models.sequence.belongsTo(models.link);
 
-            return Promise.all([models.link.sync({force: !!withClear}), models.car.sync({force: !!withClear})]);
+            return Promise.all([models.link.sync({force: !!withClear}), models.car.sync({force: !!withClear}), models.sequence.sync({force: !!withClear})]);
         },
 
         startup = function (purgeDB) {
@@ -140,63 +152,107 @@ module.exports = (function () {
             return createModels(!!purgeDB);
         },
 
+        createLink = function (url) {
+            return models.link.findOrCreate({
+                    where: {
+                        link: url
+                    },
+                    defaults: {
+                        link: url,
+                        nextRun: new Date()
+                    }
+
+                })
+                .then(function (links) {
+                    return links[0];
+                });
+        },
 
         getLink = function (url) {
             //create without a check
-            return models.link.findOrCreate({
-                where: {
-                    link: url
-                },
-                defaults: {
-                    link: url
-                }
-
-            }).then(function (links) {
-                return links[0];
+            return createLink(url).then(function (link) {
+                return createSequence(link.id).then(function (sequence) {
+                    console.log("Creating sequence %s", sequence.id);
+                    link.currentSequence = sequence.id;
+                    return link;
+                });
             });
         },
 
-        incrementLink = function (url) {
-            //this actually doesn't check for the same urls for different users, if the system will grow
-            return models.link.findOne(
-                {
-                    where: {
-                        link: url
-                    }
-                }
-            ).then(function (foundLink) {
-                //if the link is present, increment the sequenceID by one
-                if (foundLink) {
-                    return foundLink.increment({sequenceId: 1}).then(function (fl) {
-                        return fl;
-                    });
-                }
-                //create if not found
-                return getLink(url);
-            })
+        createSequence = function (linkId) {
+            return models.sequence.create({
+                linkId: linkId
+            });
         },
 
-        saveCars = function (carsInstancesArray) {
-            var i, length, promisesArray = [];
+        updateSequence = function (sequenceId, carsAdded, carsRemoved, carsNotChanged) {
+            return models.sequence.update({
+                carsAdded: +carsAdded || 0,
+                carsRemoved: +carsRemoved || 0,
+                carsNotChanged: +carsNotChanged || 0
+            }, {
+                where: {
+                    id: sequenceId
+                }
+            }).then(function (sequences) {
+                if (sequences && sequences.length) {
+                    return sequences[0];
+                }
+                return null;
+            });
+        },
 
-            if (!(carsInstancesArray instanceof Array)) {
-                return false;
+        saveCars = function (carsInstancesArray, link) {
+            var i, length, promise = Promise.resolve(),
+                linkId, outObj = {
+                    created: [],
+                    removed: [],
+                    notChanged: []
+                };
+
+
+            if (!(carsInstancesArray instanceof Array) || !carsInstancesArray.length) {
+                return promise.then(outObj);
             }
             i = 0;
             length = carsInstancesArray.length;
+            linkId = carsInstancesArray[0].linkId;
 
             for (i; i < length; i++) {
-                promisesArray.push(saveCar(carsInstancesArray[i]));
+                //append linkId to each of the items
+                carsInstancesArray[i]['linkId'] = link.id;
+                carsInstancesArray[i]['sequenceLastChecked'] = link.currentSequence;
+                promise = promise.then(saveCar.bind(null, carsInstancesArray[i]));
             }
-            return Promise.all(promisesArray).then(function (promisesResultsArray) {
-                var i, length = promisesResultsArray.length, outArray = [];
-                //this will return an array containing only CHANGED values
-                for (i = 0; i < length; i++) {
-                    if (promisesResultsArray[i].sequenceChecked !== 0) {
-                        outArray.push(promisesResultsArray[i].get());
+            return promise.then(function () {
+                //get all cars
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id
                     }
-                }
-                return outArray;
+                }).then(function (cars) {
+                    var length;
+                    //sort by new ones and removed ones
+                    length = cars.length;
+                    for (i = 0; i < length; i++) {
+                        //that means the car has been deleted, as it hasn't been checked
+                        if (cars[i].sequenceLastChecked !== link.currentSequence) {
+                            outObj.removed.push(cars[i].get());
+                        }
+                        //that means the car has been added during the last sequence (it's new)
+                        else if (cars[i].sequenceLastChecked === cars[i].sequenceId) {
+                            outObj.created.push(cars[i].get());
+                        }
+                        else {
+                            outObj.notChanged.push(cars[i].get());
+                        }
+                    }
+                    //save stats to the sequence
+                    return updateSequence(link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
+                        .then(function () {
+                            return outObj;
+                        });
+                })
             });
         },
 
@@ -209,12 +265,13 @@ module.exports = (function () {
             }).then(function (savedCar) {
                 if (savedCar) {
                     //update the car's sequenceId
-                    savedCar.sequenceChecked = carInstance.sequenceChecked;
+                    savedCar.sequenceLastChecked = carInstance.sequenceLastChecked;
                     return savedCar.save();
                 }
                 else {
                     //save new car
-                    //console.log('Saving a new car:', carInstance.id);
+                    carInstance.sequenceId = carInstance.sequenceLastChecked;
+                    //console.log('Saving a new car: %s SQID: %s LASTCHECK: %s', carInstance.id, carInstance.sequenceId, carInstance.sequenceLastChecked);
                     return models.car.create(carInstance).catch(function (err) {
                         console.error("Error creating a car:", err);
                     });
@@ -230,11 +287,11 @@ module.exports = (function () {
                     .then(function (links) {
                         //Step 3. Process each link and add nearest available execution time
                         //let's assume the execution takes 30 sec.
-                        var now = new Date(), promisesArray = [];
+                        var nowTime = new Date().getTime(), promisesArray = [];
                         console.log("Found %s links on startup:", links.length);
                         links.forEach(function (link, index) {
-                            if(!link) return;
-                            link.nextRun = new Date(now.getTime() + index * queueCheckInterval);
+                            if (!link) return;
+                            link.nextRun = new Date(nowTime + index * queueCheckInterval);
                             promisesArray.push(link.save());
                         });
                         return Promise.all(promisesArray);
@@ -260,46 +317,77 @@ module.exports = (function () {
         },
 
         checkQueue = function () {
-            var now = new Date().getTime();
-                 models.link.findOne({
-                    order: [['nextRun', 'DESC']]
-                }).then(function (link) {
-                     //if the queue is empty, do nothing
-                     if(!link) {
-                         console.log("Queue seems to be empty");
-                         return false;
-                     }
+            var nowTime = new Date().getTime();
+            models.link.findOne({
+                order: [['nextRun', 'ASC']]
+            }).then(function (link) {
+                //if the queue is empty, do nothing
+                if (!link) {
+                    console.log("Queue seems to be empty");
+                    return false;
+                }
 
-                     //if the time has come to execute the item, run in
-                    if(link.nextRun.getTime() < now.getTime) {
-                        return executeQueueItem(link);
-                    }
-                     return false;
-                });
+                //if the time has come to execute the item, run in
+                console.log("Check queue found latest link:", link.id, link.nextRun, link.nextRun.getTime());
+                if (!link.nextRun || link.nextRun.getTime() < nowTime) {
+                    return executeQueueItem(link);
+                }
+                return false;
+            });
         },
 
         executeQueueItem = function (link) {
-            if(!link || !link.id) {
+            if (!link || !link.id) {
                 return false;
             }
             if (!runningJob) {
                 runningJob = link.id;
-                return processor.processUrl(link.url)
+                return parser.process(link.link, getLink, saveCars)
                     .then(function () {
-                        runningJob = false;
-                        return checkQueue();
+                        //update nextRun of the link
+                        var nowTime = new Date().getTime();
+                        link.nextRun = new Date(nowTime + link.runPeriod * 60000);
+                        return link.save().then(function () {
+                            runningJob = false;
+                            return checkQueue();
+                        })
                     });
             }
+        },
+
+        runItemQueuePass = function (url) {
+            return parser.process(url, getLink, saveCars)
+        },
+
+        addQueueItem = function (url) {
+            return createLink(url)
+                .then(function (link) {
+                    return {
+                        id: link.id,
+                        url: link.link
+                    };
+                })
+        },
+
+        removeQueueItem = function (url) {
+            return createLink(url)
+                .then(function (link) {
+                    return {
+                        id: link.id,
+                        url: link.link
+                    };
+                })
         };
 
     return {
         startup: startup,
         saveCars: saveCars,
-        incrementLink: incrementLink,
+        getLink: getLink,
         initQueue: initQueue,
         checkQueue: checkQueue,
         startQueue: startQueue,
-        stopQueue: stopQueue
+        stopQueue: stopQueue,
+        addQueueItem: addQueueItem
     };
 
 })();

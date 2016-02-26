@@ -4,7 +4,6 @@ var express    = require('express');
 var app        = express();
 var bodyParser = require('body-parser');
 
-var processor = require('./processor.js');
 var db = require('./db.js');
 
 // configure app to use bodyParser()
@@ -18,13 +17,12 @@ var port = 3003;
 // =============================================================================
 var router = express.Router();              // get an instance of the express Router
 
-// test route to make sure everything is working (accessed at GET http://localhost:8080/api)
-router.get('/parse', function(req, res) {
+router.get('/add', function(req, res) {
     var url = decodeURIComponent(req.query.url);
     if(url) {
-        return processor.processUrl(url).then(function (items) {
+        return db.addQueueItem(url).then(function (result) {
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(items));
+            res.end(JSON.stringify(result));
         });
     }
     else {

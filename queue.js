@@ -110,7 +110,7 @@ module.exports = (function () {
                     type: Sequelize.BOOLEAN
                 },
 
-                sequenceChecked: {
+                sequenceId: {
                     type: Sequelize.INTEGER,
                     defaultValue: 0
                 }

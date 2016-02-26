@@ -1,56 +1,68 @@
 "use strict";
 
 module.exports = (function () {
-    var db = require('./db.js');
-    var _page, _phantom;
+    var _page, _phantom,
+        totalItems,
+        currentPage,
 
-    var process = function (url) {
-        return require('phantom').create()
-            //create new Phantom page
-            .then(function (phantom) {
-                _phantom = phantom;
-                return phantom.createPage();
+        process = function (url, getLink, saveCars) {
+            totalItems = [];
+            currentPage = 1;
+            console.log("Starting parser for url %s", url);
+            return getLink(url).then(function (link) {
+                return require('phantom').create()
+                    //create new Phantom page
+                    .then(function (phantom) {
+                        _phantom = phantom;
+                        return phantom.createPage();
+                    })
+                    //open URL
+                    .then(function (page) {
+                        _page = page;
+                    })
+                    //parse the cars from URL
+                    .then(function () {
+                        return processPages(url);
+                    })
+                    .catch(function (err) {
+                        console.error("Caught Err:", err);
+                        closePage();
+                    })
+                    .then(function (items) {
+                        return saveCars(items, link);
+                    })
+                    .then(function (savedCars) {
+                        console.log("Parser stats: %s/%s/%s (added/removed/not changed)", savedCars.created.length, savedCars.removed.length, savedCars.notChanged.length);
+                        closePage();
+                        return savedCars;
+                    })
             })
-            //open URL
-            .then(function (page) {
-                _page = page;
-            })
-            //parse the cars from URL
-            .then(function () {
-                return processPages(url);
-            })
-            .catch(function (err) {
-                console.error("Caught Err:", err);
-                closePage();
-            });
-    };
+        },
 
-    var closePage = function () {
-        if (_page) {
-            _page.close();
-        }
-        if (_phantom) {
-            _phantom.exit();
-        }
-    };
+        closePage = function () {
+            if (_page) {
+                _page.close();
+            }
+            if (_phantom) {
+                _phantom.exit();
+            }
+        },
 
-    /**
-     * Processing the page. Will call next page if found.
-     * process next pages
-     * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
-     * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
-     * Step 3. Parse the info
-     * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
-     * Step 5. Analyze the info, save results to DB, send notifications, etc.
-     */
-    var totalItems = [],
-        currentPage = 1,
+        /**
+         * Processing the page. Will call next page if found.
+         * process next pages
+         * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
+         * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
+         * Step 3. Parse the info
+         * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
+         * Step 5. Analyze the info, save results to DB, send notifications, etc.
+         */
 
         processPages = function (url) {
             return _page.open(url)
                 .then(parsePage)
                 .then(function (items) {
-                    console.log("Got %s items", items.length);
+                    console.log("Page found %s items", items.length);
                     totalItems = totalItems.concat(items);
                     return _page.evaluate(function () {
                         var pager = document.querySelector('.pager');
@@ -73,7 +85,7 @@ module.exports = (function () {
                         });
                     }
                     else {
-                        console.log("Total:", totalItems.length);
+                        console.log("Parser found %s cars", totalItems.length);
                         return totalItems;
                     }
                 });
