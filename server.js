@@ -3,8 +3,14 @@
 var express    = require('express');
 var app        = express();
 var bodyParser = require('body-parser');
-
+var ExpressHandlebars  = require('express-handlebars');
+var hbs = ExpressHandlebars.create({defaultLayout: 'main'});
 var db = require('./db.js');
+
+
+//configure Express to use Handlebars
+app.engine('handlebars', hbs.engine);
+app.set('view engine', 'handlebars');
 
 // configure app to use bodyParser()
 // this will let us get the data from a POST
@@ -31,6 +37,10 @@ router.get('/add', function(req, res) {
     }
 });
 
+router.get('/', function(req, res) {
+    return res.render('links');
+});
+
 
 router.get('/update/', function(req, res) {
     var id = decodeURIComponent(req.query.id);
@@ -50,7 +60,7 @@ router.get('/update/', function(req, res) {
 
 // REGISTER OUR ROUTES -------------------------------
 // all of our routes will be prefixed with /api
-app.use('/api', router);
+app.use('/', router);
 
 // START THE SERVER
 // =============================================================================
