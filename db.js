@@ -12,6 +12,7 @@ module.exports = (function () {
         runningJob = null,
         queueCheckInterval = 30000,
         queueCheckIntervalTimer = null,
+        passSalt = 'H;fd6%idsDbLT#(!^M@F*S)',
 
         connect = function () {
             return sequelize = new Sequelize('autoru', 'root', null, {
@@ -28,6 +29,28 @@ module.exports = (function () {
         },
 
         createModels = function (withClear) {
+            var syncModelPromise = Promise.resolve(),
+                modelName;
+
+            models.user = sequelize.define('user', {
+                email: {
+                    type: Sequelize.STRING(100),
+                    unique: true
+                },
+                password: {
+                    type: Sequelize.STRING(200)
+                },
+
+                authKey: {
+                    type: Sequelize.STRING(200)
+                },
+                demo: {
+                    type: Sequelize.BOOLEAN,
+                    defaultValue: false
+                }
+            });
+
+
             models.link = sequelize.define('link', {
                 link: {
                     type: Sequelize.STRING
@@ -38,6 +61,10 @@ module.exports = (function () {
                 },
                 nextRun: {
                     type: Sequelize.DATE
+                },
+                sendMail: {
+                    type: Sequelize.BOOLEAN,
+                    defaultValue: true
                 }
             });
 
@@ -120,7 +147,7 @@ module.exports = (function () {
                     type: Sequelize.INTEGER
                 },
 
-                userId: {
+                autoruUserId: {
                     type: Sequelize.INTEGER,
                     field: 'user_id'
                 },
@@ -139,16 +166,36 @@ module.exports = (function () {
                 }
             });
 
-            //define many-to-one relationship
+            //define many-to-one relationships
+            models.link.belongsTo(models.user, {
+                onDelete: 'cascade'
+            });
+            models.user.hasMany(models.link);
+
             models.car.belongsTo(models.link, {
                 onDelete: 'cascade'
             });
+            models.link.hasMany(models.car);
+
             models.car.belongsTo(models.sequence);
+            models.sequence.hasMany(models.car);
+
             models.sequence.belongsTo(models.link, {
                 onDelete: 'cascade'
             });
+            models.link.hasMany(models.sequence);
 
-            return Promise.all([models.link.sync({force: !!withClear}), models.car.sync({force: !!withClear}), models.sequence.sync({force: !!withClear})]);
+            for (modelName in models) {
+                if (models.hasOwnProperty(modelName)) {
+                    syncModelPromise = syncModelPromise.then((function (modelName) {
+                        return function () {
+                            return models[modelName].sync({force: !!withClear});
+                        }
+                    })(modelName));
+                }
+            }
+
+            return syncModelPromise;
         },
 
         startup = function (purgeDB) {
@@ -156,30 +203,185 @@ module.exports = (function () {
             return createModels(!!purgeDB);
         },
 
-        createLink = function (url) {
-            return models.link.findOrCreate({
-                    where: {
-                        link: url
-                    },
-                    defaults: {
-                        link: url,
-                        nextRun: new Date()
-                    }
 
-                })
-                .then(function (links) {
-                    return links[0];
-                });
+        createUser = function (email, password, demoMode) {
+            var crypto = require('crypto'),
+                emailValidator = require('email-validator'),
+                hash = crypto.createHash('sha1');
+
+            if (!emailValidator.validate(email)) {
+                return promiseError('EMAIL_NOT_VALID');
+            }
+
+            hash.update(new Date().getTime().toString() + email + passSalt);
+            hash = hash.digest('hex');
+
+            return models.user.findOrCreate({
+                where: {
+                    email: email
+                },
+                defaults: {
+                    email: email,
+                    authKey: hash,
+                    password: getUserPasswordHash(password),
+                    demo: !!demoMode
+                },
+                attributes: ['email', 'authKey']
+            }).then(function (users) {
+                if (users && users[0]) {
+                    return {
+                        email: users[0].email,
+                        authKey: users[0].authKey
+                    }
+                }
+                return promiseError('ERROR_CREATING_USER');
+            });
         },
 
-        getLink = function (url) {
-            //create without a check
-            return createLink(url).then(function (link) {
+        getUserPasswordHash = function (password) {
+            var crypto = require('crypto'),
+                emailValidator = require('email-validator'),
+                hash = crypto.createHash('sha1');
+            hash.update(password + passSalt);
+            return hash.digest('hex');
+        },
+
+        authenticateUser = function (login, password) {
+            if (!login || !password) {
+                return promiseError('NO_LOGIN_OR_PASS');
+            }
+            return models.user.findOne({
+                where: {
+                    email: login,
+                    password: getUserPasswordHash(password)
+                },
+                attributes: ['email', 'authKey']
+            }).then(function (user) {
+                return user || promiseError('AUTH_FAIL');
+            });
+        },
+
+        getUserById = function (userId) {
+            return models.user.findOne({
+                where: {
+                    id: userId
+                }
+            }).then(function (user) {
+                if (user) {
+                    return user.get();
+                }
+                return promiseError('USER_NOT_FOUND');
+            });
+        },
+
+        getUserByAuthKey = function (authKey) {
+            if (!authKey) {
+                return promiseError('NO_AUTHKEY');
+            }
+            return models.user.findOne({
+                where: {
+                    authKey: authKey
+                }
+            }).then(function (user) {
+                if (user) {
+                    return user.get();
+                }
+                return promiseError('USER_NOT_FOUND');
+            });
+        },
+
+        createLink = function (userId, url) {
+            if (!userId || !url) {
+                return promiseError('NO_USERID_OR_URL');
+            }
+
+            return getUserById(userId).then(function (user) {
+                //TODO: add check whether a user can create new link or not (linkLimit, demoMode or something)
+                return models.link.findOrCreate({
+                        where: {
+                            link: url,
+                            userId: user.id
+                        },
+                        defaults: {
+                            link: url,
+                            userId: user.id,
+                            nextRun: new Date()
+                        }
+                    })
+                    .then(function (links) {
+                        return links[0];
+                    });
+            });
+        },
+
+        createLinkFiltered = function (userId, linkId) {
+            return createLink(userId, linkId)
+                .then(filterLinkOutput);
+        },
+
+        getLinkByIdFiltered = function (userId, linkId) {
+            return getLinkById(userId, linkId)
+                .then(filterLinkOutput);
+        },
+
+
+        removeLink = function (userId, linkId) {
+            return getUserById(userId).then(function (user) {
+                return models.link.destroy({
+                    where: {
+                        id: linkId,
+                        userId: user.id
+                    }
+                }).then(function (result) {
+                    return {
+                        result: result
+                    }
+                })
+            });
+        },
+
+        sendMailToLink = function (userId, linkId, sendMail) {
+            return getUserById(userId).then(function (user) {
+                return getLinkById(userId, linkId)
+                    .then(function (link) {
+                        link.sendMail = !!sendMail;
+                        return link.save();
+                    })
+                    .then(filterLinkOutput);
+            });
+        },
+
+        getLinkAndCreateSequence = function (userId, url) {
+            return createLink(userId, url).then(function (link) {
                 return createSequence(link.id).then(function (sequence) {
                     console.log("Creating sequence %s", sequence.id);
                     link.currentSequence = sequence.id;
                     return link;
                 });
+            });
+        },
+
+        getLinks = function (userId) {
+            //create without a check
+            return models.link.findAll({
+                where: {
+                    userId: userId
+                }
+            });
+        },
+
+        getLinkById = function (userId, linkId) {
+            //create without a check
+            return models.link.findOne({
+                where: {
+                    id: linkId,
+                    userId: userId
+                }
+            }).then(function (link) {
+                if (link === null) {
+                    return promiseError('LINK_NOT_FOUND');
+                }
+                return link;
             });
         },
 
@@ -203,6 +405,25 @@ module.exports = (function () {
                     return sequences[0];
                 }
                 return null;
+            });
+        },
+
+        getLinkSequences = function (userId, linkId) {
+            //create without a check
+            return models.link.findOne({
+                where: {
+                    id: linkId,
+                    userId: userId
+                },
+                include: [models.sequence]
+            }).then(function (link) {
+                if (!link) {
+                    return promiseError('LINK_NOT_FOUND');
+                }
+                if (link.sequences && link.sequences.length) {
+                    return link.sequences;
+                }
+                return promiseError('NO_SEQUENCES_FOUND');
             });
         },
 
@@ -346,7 +567,7 @@ module.exports = (function () {
             }
             if (!runningJob) {
                 runningJob = link.id;
-                return parser.process(link.link, getLink, saveCars)
+                return parser.process(link.link, getLinkAndCreateSequence, saveCars)
                     .then(function () {
                         //update nextRun of the link
                         var nowTime = new Date().getTime();
@@ -368,47 +589,41 @@ module.exports = (function () {
             return link.save();
         },
 
-        runLinkById = function (linkId, force) {
-            return models.link.findOne({
-                where: {
-                    id: linkId
-                }
-            }).then(moveItemToQueueFront)
-                .then(filterLinkOutput);
-        },
-
-        runLinkByUrl = function (linkUrl) {
-            return models.link.findOne({
-                where: {
-                    link: linkUrl
-                }
-            }).then(moveItemToQueueFront)
-                .then(filterLinkOutput)
-        },
-
-        addQueueItem = function (url) {
-            return createLink(url)
+        runLinkById = function (userId, linkId) {
+            return getLinkById(userId, linkId)
+                .then(moveItemToQueueFront)
                 .then(filterLinkOutput);
         },
 
         filterLinkOutput = function (link) {
             return {
                 id: link.id,
-                url: link.link
+                url: link.link,
+                sendMail: link.sendMail
             };
+        },
+
+        promiseError = function (errText) {
+            return Promise.reject({error: errText});
         };
 
     return {
         startup: startup,
         saveCars: saveCars,
-        getLink: getLink,
+        getLinks: getLinks,
+        getLinkById: getLinkByIdFiltered,
+        createLink: createLinkFiltered,
+        runLinkById: runLinkById,
+        getLinkSequences: getLinkSequences,
+        removeLink: removeLink,
+        sendMailToLink: sendMailToLink,
         initQueue: initQueue,
         checkQueue: checkQueue,
         startQueue: startQueue,
         stopQueue: stopQueue,
-        addQueueItem: addQueueItem,
-        runLinkById: runLinkById,
-        runLinkByUrl: runLinkByUrl
+        createUser: createUser,
+        authenticateUser: authenticateUser,
+        getUserByAuthKey: getUserByAuthKey
     };
 
 })();
