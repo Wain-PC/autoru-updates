@@ -1,0 +1,25 @@
+<h1>Обрабатываемая ссылка:</h1>
+<a href="{{domain}}/links/{{link.id}}">Watchdog</a>
+<a href="{{link.link}}">Auto.ru</a>
+
+<h1>Добавленные автомобили</h1>
+<div id="cars_created">
+    {{#each cars.created}}
+        <p><a href="{{this.url}}">{{this.model}} {{this.generation}}</a></p>
+    {{/each}}
+</div>
+<h1>Удаленные автомобили</h1>
+<div id="cars_removed">
+    {{#each cars.removed}}
+        <p><a href="{{this.url}}">{{this.model}} {{this.generation}}</a></p>
+    {{/each}}
+</div>
+<h1>Остальные (не измененные) автомобили</h1>
+<div id="cars_notChanged">
+    {{#each cars.notChanged}}
+        <p><a href="{{this.url}}">{{this.model}} {{this.generation}}</a></p>
+    {{/each}}
+</div>
+
+<h1>Все ссылки:</h1>
+<a href="{{domain}}/links/">Все ссылки</a>
