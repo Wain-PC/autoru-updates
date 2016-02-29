@@ -4,7 +4,13 @@ module.exports = (function () {
     var _page, _phantom,
         totalItems,
         currentPage,
-
+        /**
+         * Core method to parse the page. It will do the parsing, then save them to DB.
+         * @param url URL to parse
+         * @param getLink Reference to db.getLink (requiring it here will cause a circular dependency)
+         * @param saveCars Reference to db.saveCars method (for the same reason here as the previous param)
+         * @returns Promise Promise will resolve with the object containing 3 properties (all of them are arrays filled with cars): created, removed, notChanged
+         */
         process = function (url, getLink, saveCars) {
             totalItems = [];
             currentPage = 1;
@@ -39,6 +45,9 @@ module.exports = (function () {
             })
         },
 
+        /**
+         * Closes the PtantomJS page
+         */
         closePage = function () {
             if (_page) {
                 _page.close();
@@ -49,15 +58,19 @@ module.exports = (function () {
         },
 
         /**
-         * Processing the page. Will call next page if found.
-         * process next pages
-         * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
-         * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
-         * Step 3. Parse the info
-         * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
-         * Step 5. Analyze the info, save results to DB, send notifications, etc.
          */
 
+        /**
+         * Processes all the pages for the current filter - one by one
+         * @description
+         * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
+         * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
+         * Step 3. Parse the info (using parsePage method)
+         * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
+         * Step 5. Analyze the info, save results to DB, send notifications, etc.
+         * @param url Filter URL
+         * @returns Promise Promise will resolve with the array of cars found on all pages
+         */
         processPages = function (url) {
             return _page.open(url)
                 .then(parsePage)
@@ -80,6 +93,8 @@ module.exports = (function () {
                 })
                 .then(function (pager) {
                     if (pager) {
+                        //wait 1 sec before opening the next page
+                        //opening the pages too quickly can result in a BAN. We don't want a ban really
                         return promiseTimeout(1000).then(function () {
                             return processPages(createUrl(url, pager.current + 1));
                         });
@@ -91,6 +106,12 @@ module.exports = (function () {
                 });
         },
 
+        /**
+         * Created URL for the next page
+         * @param url URL for the current page
+         * @param page Next page number
+         * @returns {string} URL of the next page
+         */
         createUrl = function (url, page) {
             url = url.split('&page_num_offers');
             url = url[0];
@@ -98,6 +119,10 @@ module.exports = (function () {
             return url;
         },
 
+        /**
+         * Parses a single page and returns an array of found cars
+         * @returns {Array}
+         */
         parsePage = function () {
             return _page.evaluate(function () {
                 var list = document.querySelectorAll('tbody.listing-item'),
@@ -137,6 +162,11 @@ module.exports = (function () {
             });
         },
 
+        /**
+         * A simple wrapper for native setTimeout (kind of 'sleep' for JS code).
+         * @param time Timeout time (in ms)
+         * @returns Promise  Promise will resolve when the timeout's callback is executed
+         */
         promiseTimeout = function (time) {
             return new Promise(function (resolve) {
                 setTimeout(resolve, time);
