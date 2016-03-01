@@ -529,6 +529,57 @@ var Sequelize = require("sequelize"),
         });
     },
 
+    getLinkCars = function (userId, linkId) {
+        return models.link.findOne({
+            where: {
+                id: linkId,
+                userId: userId,
+            },
+            include: [models.car]
+        }).then(function (linkWithCars) {
+            if (!linkWithCars) {
+                return promiseError('LINK_NOT_FOUND');
+            }
+            if (linkWithCars.cars && linkWithCars.cars.length) {
+                return linkWithCars.cars;
+            }
+            return promiseError('NO_CARS_FOUND');
+        });
+    },
+
+    getLinkCarsRemoved = function (userId, linkId) {
+        return models.link.findOne({
+            where: {
+                id: linkId,
+                userId: userId,
+            },
+            include: [{
+                model: models.sequence,
+                order: 'id DESC',
+                limit: 1
+            }]
+        }).then(function (link) {
+                if (!link) {
+                    return promiseError('LINK_NOT_FOUND');
+                }
+                var maxSequenceId = link.sequences[0];
+                if (!maxSequenceId) {
+                    return [];
+                }
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id,
+                        sequenceLastChecked: {
+                            $lt: maxSequenceId.id
+                        }
+                    }
+                });
+            })
+            .then(function (cars) {
+                return cars;
+            })
+    },
+
     /**
      * This will save the array of the found cars in the DB
      * @param carsInstancesArray Array of the found cars during the parsing sequence
@@ -776,5 +827,7 @@ module.exports = {
     stopQueue: stopQueue,
     createUser: createUser,
     authenticateUser: authenticateUser,
-    getUserByAuthKey: getUserByAuthKey
+    getUserByAuthKey: getUserByAuthKey,
+    getLinkCars: getLinkCars,
+    getLinkCarsRemoved: getLinkCarsRemoved
 };

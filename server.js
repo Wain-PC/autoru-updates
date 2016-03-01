@@ -3,7 +3,7 @@ var express = require('express'),
     bodyParser = require('body-parser'),
     db = require('./db.js'),
     mailer = require('./mailer.js'),
-    port = 3003,
+    port = 3005,
     router = express.Router();              // get an instance of the express Router
 
 // configure app to use bodyParser()
@@ -88,6 +88,16 @@ router.post('/links/add', function (req, res, next) {
 
 router.post('/link/:linkId', function (req, res, next) {
     res.locals.response = db.getLinkById(res.locals.user.id, req.params.linkId);
+    next();
+});
+
+router.post('/link/:linkId/cars', function (req, res, next) {
+    res.locals.response = db.getLinkCars(res.locals.user.id, req.params.linkId);
+    next();
+});
+
+router.post('/link/:linkId/carsremoved', function (req, res, next) {
+    res.locals.response = db.getLinkCarsRemoved(res.locals.user.id, req.params.linkId);
     next();
 });
 
