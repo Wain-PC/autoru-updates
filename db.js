@@ -700,7 +700,7 @@ var Sequelize = require("sequelize"),
         }
         if (!runningJob) {
             runningJob = link.id;
-            return parser.process(link.link, getLinkAndCreateSequence, saveCars)
+            return parser.process(link, getLinkAndCreateSequence, saveCars)
                 .then(function () {
                     //update nextRun of the link
                     var nowTime = new Date().getTime();

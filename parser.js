@@ -6,16 +6,17 @@ module.exports = (function () {
         currentPage,
         /**
          * Core method to parse the page. It will do the parsing, then save them to DB.
-         * @param url URL to parse
+         * @param link Link to parse
          * @param getLink Reference to db.getLink (requiring it here will cause a circular dependency)
          * @param saveCars Reference to db.saveCars method (for the same reason here as the previous param)
          * @returns Promise Promise will resolve with the object containing 3 properties (all of them are arrays filled with cars): created, removed, notChanged
          */
-        process = function (url, getLink, saveCars) {
+        process = function (link, getLink, saveCars) {
+            var url = link.link,
+                userId = link.userId;
             totalItems = [];
             currentPage = 1;
-            console.log("Starting parser for url %s", url);
-            return getLink(url).then(function (link) {
+            return getLink(userId, url).then(function (link) {
                 return require('phantom').create()
                     //create new Phantom page
                     .then(function (phantom) {
