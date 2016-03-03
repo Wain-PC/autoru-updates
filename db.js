@@ -580,6 +580,78 @@ var Sequelize = require("sequelize"),
             })
     },
 
+
+    getAddedCarsForSequence = function (userId, linkId, sequenceId) {
+        /*
+        TODO: add userId check
+         */
+        return models.link.findOne({
+            where: {
+                id: linkId,
+                userId: userId
+            },
+            include: [{
+                model: models.sequence,
+                where: {
+                    id: sequenceId
+                }
+            }]
+        }).then(function (link) {
+                if (!link) {
+                    return promiseError('LINK_NOT_FOUND');
+                }
+                var sequence = link.sequences[0];
+                if (!sequence) {
+                    return [];
+                }
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id,
+                        sequenceId: sequenceId
+                    }
+                });
+            })
+            .then(function (cars) {
+                return cars;
+            })
+    },
+
+
+    getRemovedCarsForSequence = function (userId, linkId, sequenceId) {
+        /*
+         TODO: add userId check
+         */
+        return models.link.findOne({
+            where: {
+                id: linkId,
+                userId: userId
+            },
+            include: [{
+                model: models.sequence,
+                where: {
+                    id: sequenceId
+                }
+            }]
+        }).then(function (link) {
+                if (!link) {
+                    return promiseError('LINK_NOT_FOUND');
+                }
+                var sequence = link.sequences[0];
+                if (!sequence) {
+                    return [];
+                }
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id,
+                        sequenceLastChecked: parseInt(sequenceId)-1
+                    }
+                });
+            })
+            .then(function (cars) {
+                return cars;
+            })
+    },
+
     /**
      * This will save the array of the found cars in the DB
      * @param carsInstancesArray Array of the found cars during the parsing sequence
@@ -829,5 +901,7 @@ module.exports = {
     authenticateUser: authenticateUser,
     getUserByAuthKey: getUserByAuthKey,
     getLinkCars: getLinkCars,
-    getLinkCarsRemoved: getLinkCarsRemoved
+    getLinkCarsRemoved: getLinkCarsRemoved,
+    getAddedCarsForSequence: getAddedCarsForSequence,
+    getRemovedCarsForSequence: getRemovedCarsForSequence
 };

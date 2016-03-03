@@ -120,6 +120,15 @@ router.post('/link/:linkId/sendmail', function (req, res, next) {
     res.locals.response = db.sendMailToLink(res.locals.user.id, req.params.linkId, req.body.sendmail);
     next();
 });
+router.post('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
+    res.locals.response = db.getAddedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
+    next();
+});
+
+router.post('/link/:linkId/sequence/:sequenceId/removed', function (req, res, next) {
+    res.locals.response = db.getRemovedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
+    next();
+});
 
 router.use(returnJSON);
 router.use(returnError);
