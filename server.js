@@ -76,7 +76,7 @@ router.post('/user/login', function (req, res) {
 
 router.use(checkAuthByKey);
 
-router.post('/links/get', function (req, res, next) {
+router.post('/links', function (req, res, next) {
     res.locals.response = db.getLinks(res.locals.user.id);
     next();
 });
@@ -101,11 +101,6 @@ router.post('/link/:linkId/carsremoved', function (req, res, next) {
     next();
 });
 
-router.post('/link/:linkId/updates', function (req, res, next) {
-    res.locals.response = db.getLinkSequences(res.locals.user.id, req.params.linkId);
-    next();
-});
-
 router.post('/link/:linkId/update', function (req, res, next) {
     res.locals.response = db.runLinkById(res.locals.user.id, req.params.linkId);
     next();
@@ -120,6 +115,12 @@ router.post('/link/:linkId/sendmail', function (req, res, next) {
     res.locals.response = db.sendMailToLink(res.locals.user.id, req.params.linkId, req.body.sendmail);
     next();
 });
+
+router.post('/link/:linkId/sequence', function (req, res, next) {
+    res.locals.response = db.getLinkSequences(res.locals.user.id, req.params.linkId);
+    next();
+});
+
 router.post('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
     res.locals.response = db.getAddedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
     next();
