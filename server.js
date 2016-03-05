@@ -23,7 +23,6 @@ function checkAuthByKey(req, res, next) {
         .then(function (user) {
             //do stuff
             res.locals.user = user;
-            console.log(user);
             next();
         })
         .catch(function (error) {

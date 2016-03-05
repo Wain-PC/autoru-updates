@@ -76,6 +76,14 @@ var Sequelize = require("sequelize"),
         });
 
         models.sequence = sequelize.define('sequence', {
+            linkId: {
+                type: Sequelize.INTEGER,
+                primaryKey: true
+            },
+            orderId: {
+                type: Sequelize.INTEGER,
+                primaryKey: true
+            },
             carsAdded: {
                 type: Sequelize.INTEGER,
                 defaultValue: 0
@@ -167,6 +175,11 @@ var Sequelize = require("sequelize"),
                 type: Sequelize.BOOLEAN
             },
 
+            sequenceCreated: {
+                type: Sequelize.INTEGER,
+                defaultValue: 0
+            },
+
             sequenceLastChecked: {
                 type: Sequelize.INTEGER,
                 defaultValue: 0
@@ -174,23 +187,23 @@ var Sequelize = require("sequelize"),
         });
 
         //define many-to-one relationships
+        //-----USER->LINK
         models.link.belongsTo(models.user, {
             onDelete: 'cascade'
         });
         models.user.hasMany(models.link);
 
-        models.car.belongsTo(models.link, {
-            onDelete: 'cascade'
-        });
-        models.link.hasMany(models.car);
-
-        models.car.belongsTo(models.sequence);
-        models.sequence.hasMany(models.car);
-
+        //-----LINK->SEQUENCE
         models.sequence.belongsTo(models.link, {
             onDelete: 'cascade'
         });
         models.link.hasMany(models.sequence);
+
+        //---LINK->CAR
+        models.car.belongsTo(models.link, {
+            onDelete: 'cascade'
+        });
+        models.link.hasMany(models.car);
 
         for (modelName in models) {
             if (models.hasOwnProperty(modelName)) {
@@ -239,17 +252,18 @@ var Sequelize = require("sequelize"),
             authKey: hash,
             password: getUserPasswordHash(password),
             demo: !!demoMode
-        }).then(function (users) {
-            if (users && users[0]) {
+        }).then(function (user) {
+            if (user) {
+                user = user.get();
                 return {
-                    email: users[0].email,
-                    authKey: users[0].authKey
+                    email: user.email,
+                    authKey: user.authKey
                 }
             }
             return promiseError('ERROR_CREATING_USER');
         }, function (err) {
             //unique constraint on Email failed
-            return promiseError('EMAIL_EXISTS');
+            return promiseError('LOGIN_EXISTS');
         });
     },
 
@@ -426,8 +440,7 @@ var Sequelize = require("sequelize"),
     getLinkAndCreateSequence = function (userId, url) {
         return createLink(userId, url).then(function (link) {
             return createSequence(link.id).then(function (sequence) {
-                console.log("Creating sequence %s", sequence.id);
-                link.currentSequence = sequence.id;
+                link.currentSequence = sequence.orderId;
                 return link;
             });
         });
@@ -474,27 +487,40 @@ var Sequelize = require("sequelize"),
      * @returns Promise.<Sequence> Promise will resolve with the created sequence data (full)
      */
     createSequence = function (linkId) {
-        return models.sequence.create({
-            linkId: linkId
+        return models.sequence.max('orderId', {
+            where: {
+                linkId: linkId
+            }
+        }).then(function (max) {
+            if (!max) {
+                max = 0;
+            }
+
+            return models.sequence.create({
+                linkId: linkId,
+                orderId: max + 1
+            });
         });
     },
 
     /**
      * Updates the sequence when the parsing of the link finishes
-     * @param sequenceId ID of the sequence
+     * @param linkId ID of the link
+     * @param orderId ID of the sequence
      * @param carsAdded Number of cars added to the link during this sequence
      * @param carsRemoved  Number of cars removed from the link during this sequence
      * @param carsNotChanged  Number of cars that didn't change during this sequence
      * @returns Promise.<Sequence> Promise will resolve with the sequence data (full)
      */
-    updateSequence = function (sequenceId, carsAdded, carsRemoved, carsNotChanged) {
+    updateSequence = function (linkId, orderId, carsAdded, carsRemoved, carsNotChanged) {
         return models.sequence.update({
             carsAdded: +carsAdded || 0,
             carsRemoved: +carsRemoved || 0,
             carsNotChanged: +carsNotChanged || 0
         }, {
             where: {
-                id: sequenceId
+                linkId: linkId,
+                orderId: orderId
             }
         }).then(function (sequences) {
             if (sequences && sequences.length) {
@@ -533,7 +559,7 @@ var Sequelize = require("sequelize"),
         return models.link.findOne({
             where: {
                 id: linkId,
-                userId: userId,
+                userId: userId
             },
             include: [models.car]
         }).then(function (linkWithCars) {
@@ -551,11 +577,11 @@ var Sequelize = require("sequelize"),
         return models.link.findOne({
             where: {
                 id: linkId,
-                userId: userId,
+                userId: userId
             },
             include: [{
                 model: models.sequence,
-                order: 'id DESC',
+                order: 'orderId DESC',
                 limit: 1
             }]
         }).then(function (link) {
@@ -570,7 +596,7 @@ var Sequelize = require("sequelize"),
                     where: {
                         linkId: link.id,
                         sequenceLastChecked: {
-                            $lt: maxSequenceId.id
+                            $lt: maxSequenceId.orderId
                         }
                     }
                 });
@@ -581,10 +607,7 @@ var Sequelize = require("sequelize"),
     },
 
 
-    getAddedCarsForSequence = function (userId, linkId, sequenceId) {
-        /*
-        TODO: add userId check
-         */
+    getAddedCarsForSequence = function (userId, linkId, sequenceOrderId) {
         return models.link.findOne({
             where: {
                 id: linkId,
@@ -593,7 +616,7 @@ var Sequelize = require("sequelize"),
             include: [{
                 model: models.sequence,
                 where: {
-                    id: sequenceId
+                    orderId: sequenceOrderId
                 }
             }]
         }).then(function (link) {
@@ -607,7 +630,7 @@ var Sequelize = require("sequelize"),
                 return models.car.findAll({
                     where: {
                         linkId: link.id,
-                        sequenceId: sequenceId
+                        sequenceCreated: sequenceOrderId
                     }
                 });
             })
@@ -617,7 +640,7 @@ var Sequelize = require("sequelize"),
     },
 
 
-    getRemovedCarsForSequence = function (userId, linkId, sequenceId) {
+    getRemovedCarsForSequence = function (userId, linkId, sequenceOrderId) {
         /*
          TODO: add userId check
          */
@@ -629,21 +652,26 @@ var Sequelize = require("sequelize"),
             include: [{
                 model: models.sequence,
                 where: {
-                    id: sequenceId
+                    orderId: sequenceOrderId
                 }
             }]
         }).then(function (link) {
+                var sequence, prevSequenceOrderId;
                 if (!link) {
                     return promiseError('LINK_NOT_FOUND');
                 }
-                var sequence = link.sequences[0];
+                sequence = link.sequences[0];
                 if (!sequence) {
+                    return [];
+                }
+                prevSequenceOrderId = parseInt(sequenceOrderId) - 1;
+                if (prevSequenceOrderId < 0) {
                     return [];
                 }
                 return models.car.findAll({
                     where: {
                         linkId: link.id,
-                        sequenceLastChecked: parseInt(sequenceId)-1
+                        sequenceLastChecked: prevSequenceOrderId
                     }
                 });
             })
@@ -691,20 +719,22 @@ var Sequelize = require("sequelize"),
                 //sort by new ones and removed ones
                 length = cars.length;
                 for (i = 0; i < length; i++) {
-                    //that means the car has been deleted, as it hasn't been checked
-                    if (cars[i].sequenceLastChecked !== link.currentSequence) {
-                        outObj.removed.push(cars[i].get());
-                    }
+
                     //that means the car has been added during the last sequence (it's new)
-                    else if (cars[i].sequenceLastChecked === cars[i].sequenceId) {
+                    if (cars[i].sequenceLastChecked === cars[i].sequenceCreated) {
                         outObj.created.push(cars[i].get());
                     }
-                    else {
+                    //that means the car has been deleted, as it hasn't been checked by the current sequence (but checked by the previous one)
+                    else if (cars[i].sequenceLastChecked === link.currentSequence - 1) {
+                        outObj.removed.push(cars[i].get());
+                    }
+
+                    else if (cars[i].sequenceLastChecked === link.currentSequence) {
                         outObj.notChanged.push(cars[i].get());
                     }
                 }
                 //save stats to the sequence
-                return updateSequence(link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
+                return updateSequence(link.id, link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
                     .then(function () {
                         return outObj;
                     });
@@ -725,14 +755,13 @@ var Sequelize = require("sequelize"),
             }
         }).then(function (savedCar) {
             if (savedCar) {
-                //update the car's sequenceId
+                //update the car's sequenceCreated
                 savedCar.sequenceLastChecked = carInstance.sequenceLastChecked;
                 return savedCar.save();
             }
             else {
                 //save new car
-                carInstance.sequenceId = carInstance.sequenceLastChecked;
-                //console.log('Saving a new car: %s SQID: %s LASTCHECK: %s', carInstance.id, carInstance.sequenceId, carInstance.sequenceLastChecked);
+                carInstance.sequenceCreated = carInstance.sequenceLastChecked;
                 return models.car.create(carInstance).catch(function (err) {
                     console.error("Error creating a car:", err);
                 });
@@ -834,6 +863,7 @@ var Sequelize = require("sequelize"),
                     })
                 });
         }
+        console.log("Task is still running, prevent link run");
     },
 
     /**
