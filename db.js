@@ -721,7 +721,7 @@ var Sequelize = require("sequelize"),
                 for (i = 0; i < length; i++) {
 
                     //that means the car has been added during the last sequence (it's new)
-                    if (cars[i].sequenceLastChecked === cars[i].sequenceCreated) {
+                    if (link.currentSequence === cars[i].sequenceCreated) {
                         outObj.created.push(cars[i].get());
                     }
                     //that means the car has been deleted, as it hasn't been checked by the current sequence (but checked by the previous one)
