@@ -23,6 +23,7 @@ function checkAuthByKey(req, res, next) {
         .then(function (user) {
             //do stuff
             res.locals.user = user;
+            console.log(user);
             next();
         })
         .catch(function (error) {
@@ -41,10 +42,14 @@ function returnJSON(req, res, next) {
 
 }//Add a simple middleware function to return ERRORS
 function returnError(err, req, res, next) {
-    console.log(err);
+    console.log("Returning error:");
+    console.trace(err);
     var response = res.locals.response;
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify(response));
+    if(response) {
+       return res.end(JSON.stringify(response));
+    }
+    return res.end(JSON.stringify({error: 'API_ERROR'}));
 
 }
 
