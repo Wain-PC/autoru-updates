@@ -152,7 +152,6 @@ var connection = db.startup().then(function (connection) {
                     res.redirect('/');
                 });
             }, function (error) {
-                console.log(error);
                 req.session.loginData = {
                     login: login,
                     error: error
@@ -309,7 +308,7 @@ var connection = db.startup().then(function (connection) {
         db.getAddedCarsForSequence(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
-                cars: carSorter(req, cars),
+                cars: carSorter(req, cars)
             });
         });
     });
@@ -321,6 +320,17 @@ var connection = db.startup().then(function (connection) {
                 cars: carSorter(req, cars)
             });
         });
+    });
+
+    router.use(function(req, res){
+        res.status(404);
+        res.render('404');
+    });
+
+    router.use(function(err, req, res, next) {
+        console.error(err.stack);
+        res.status(500);
+        res.render('error');
     });
 
 
