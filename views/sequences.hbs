@@ -1,0 +1,40 @@
+{{>navbar}}
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>Дата обновления</th>
+        <th>Добавлено</th>
+        <th>Удалено</th>
+        <th>Не изменилось</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each sequences}}
+        <tr>
+            <td>
+                {{momentFromNow this.updatedAt}}
+            </td>
+            <td>
+                {{#if this.carsAdded}}
+                    <a class="btn btn-info"
+                       href="/link/{{this.linkId}}/sequence/{{this.orderId}}">{{this.carsAdded}}</a>
+                {{else}}
+                    {{this.carsAdded}}
+                {{/if}}
+            </td>
+            <td>
+                {{#if this.carsRemoved}}
+                    <a class="btn btn-warning"
+                       href="/link/{{this.linkId}}/sequence/{{this.orderId}}/removed">{{this.carsRemoved}}</a>
+                {{else}}
+                    {{this.carsRemoved}}
+                {{/if}}
+            </td>
+            <td>
+                <a class="btn btn-default" href="/link/{{this.linkId}}/cars">{{this.carsNotChanged}}</a>
+            </td>
+        </tr>
+    {{/each}}
+    </tbody>
+</table>

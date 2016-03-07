@@ -1,0 +1,61 @@
+{{>navbar}}
+{{#if message}}
+    {{>message type="info" message=message}}
+{{/if}}
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>Ссылка</th>
+        <th>Текущие авто</th>
+        <th>Проданные авто</th>
+        <th>Обновления</th>
+        <th>Действия</th>
+    </tr>
+    </thead>
+    <tbody>
+    {{#each links}}
+        <tr>
+            <td>
+                {{this.id}}
+            </td>
+            <td>
+                <a href="{{this.link}}" title="{{this.link}}">{{stripUrl this.link}}</a>
+            </td>
+            <td>
+                <a class="btn btn-default" href="/link/{{this.id}}/cars">Текущие авто</a>
+            </td>
+            <td>
+                <a class="btn btn-default" href="/link/{{this.id}}/carsremoved">Проданные авто</a>
+            </td>
+            <td>
+                <a class="btn btn-default" href="/link/{{this.id}}/sequence">Обновления</a>
+            </td>
+            <td>
+                <a class="btn btn-warning" href="/link/{{this.id}}/update">Запланировать обновление</a>
+                <a class="btn btn-danger" data-href="/link/{{this.id}}/remove" data-toggle="modal" data-target="#confirm-delete">Удалить</a>
+            </td>
+        </tr>
+    {{/each}}
+    </tbody>
+</table>
+
+<div class="modal fade" id="confirm-delete" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-body">
+                Вы действительно хотите удалить эту ссылку?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">Отмена</button>
+                <a class="btn btn-danger btn-ok">Удалить</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    $('#confirm-delete').on('show.bs.modal', function(e) {
+        $(this).find('.btn-ok').attr('href', $(e.relatedTarget).data('href'));
+    });
+</script>

@@ -1,0 +1,41 @@
+{{>navbar}}
+
+<table class="table table-striped">
+    <thead>
+    <tr>
+    {{#each columns}}
+        <th>{{this.title}}<a href="{{../url}}?orderby={{this.id}}&direction=0">▲</a><a href="{{url}}?orderby={{this.id}}&direction=1">▼</a></th>
+    {{/each}}
+    </tr>
+    </thead>
+    <tbody>
+    {{#each cars}}
+        <tr>
+            <td>
+                <a href="{{this.url}}">{{this.id}}</a>
+            </td>
+            <td>
+                {{this.mark}} {{this.model}}
+            </td>
+            <td>
+                {{this.generation}}
+            </td>
+            <td>
+                {{this.year}}
+            </td>
+            <td>
+                {{this.run}}
+            </td>
+            <td>
+                {{this.price}}
+            </td>
+            <td>
+                {{momentFromNow this.created}}
+            </td>
+            <td>
+                {{momentFromNow this.updated}}
+            </td>
+        </tr>
+    {{/each}}
+    </tbody>
+</table>

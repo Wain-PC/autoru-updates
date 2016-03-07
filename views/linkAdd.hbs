@@ -1,0 +1,22 @@
+{{>navbar}}
+<div class="row">
+    <div class="col-sm-4 col-sm-offset-4">
+
+        {{#if error}}
+            {{>message type="danger" message="Неверный формат ссылки"}}
+        {{/if}}
+
+        <form class="form-signin" action="/links/add" method="post">
+            <h2 class="form-signin-heading">Добавление ссылки</h2>
+            <label for="url" class="sr-only">URL ссылки на Auto.ru</label>
+            <input type="url" id="url" name="url" class="form-control" placeholder="URL (ссылка)" required=""
+                   autofocus="" {{#if url}} value="{{url}}"{{/if}}>
+            <div class="checkbox">
+                <label>
+                    <input name="sendmail" type="checkbox" value="true" checked="checked"> Уведомления при обновлениях
+                </label>
+            </div>
+            <button class="btn btn-lg btn-primary btn-block" type="submit">Добавить</button>
+        </form>
+    </div>
+</div>

@@ -18,7 +18,7 @@ var Sequelize = require("sequelize"),
      * @returns sequelize instance
      */
     connect = function () {
-        return sequelize = new Sequelize('autoru', 'root', null, {
+        sequelize = new Sequelize('autoru', 'root', null, {
             host: '127.0.0.1',
             dialect: 'sqlite',
             pool: {
@@ -29,6 +29,7 @@ var Sequelize = require("sequelize"),
             storage: dbPath,
             logging: false
         });
+        return sequelize;
     },
 
     /**
@@ -214,7 +215,6 @@ var Sequelize = require("sequelize"),
                 })(modelName));
             }
         }
-
         return syncModelPromise;
     },
 
@@ -223,8 +223,10 @@ var Sequelize = require("sequelize"),
      * @param purgeDB
      */
     startup = function (purgeDB) {
-        connect();
-        return createModels(!!purgeDB);
+        var connection = connect();
+        return createModels(!!purgeDB).then(function () {
+            return {connection: connection};
+        })
     },
 
 
@@ -256,6 +258,7 @@ var Sequelize = require("sequelize"),
             if (user) {
                 user = user.get();
                 return {
+                    id: user.id,
                     email: user.email,
                     authKey: user.authKey
                 }
@@ -294,7 +297,7 @@ var Sequelize = require("sequelize"),
                 email: login,
                 password: getUserPasswordHash(password)
             },
-            attributes: ['email', 'authKey']
+            attributes: ['id', 'email', 'authKey']
         }).then(function (user) {
             return user || promiseError('AUTH_FAIL');
         });
@@ -342,12 +345,17 @@ var Sequelize = require("sequelize"),
     /**
      * Creates a new filter link for the user (or returns an existing one, if the user already has one with the same URL)
      * @param userId ID of the user
-     * @param url URL of the link to create
+     * @param url String URL of the link to create
+     * @param sendMail Boolean if true, notifications will be send on updates
      * @returns Promise.<Link> Data object for the created or found link.
      */
-    createLink = function (userId, url) {
+    createLink = function (userId, url, sendMail) {
         if (!userId || !url) {
             return promiseError('NO_USERID_OR_URL');
+        }
+
+        if (sendMail === undefined) {
+            sendMail = true;
         }
 
         return getUserById(userId).then(function (user) {
@@ -360,7 +368,8 @@ var Sequelize = require("sequelize"),
                     defaults: {
                         link: url,
                         userId: user.id,
-                        nextRun: new Date()
+                        nextRun: new Date(),
+                        sendMail: !!sendMail
                     }
                 })
                 .then(function (links) {
@@ -371,12 +380,13 @@ var Sequelize = require("sequelize"),
 
     /**
      * The same as createLink, but suitable to the output (filters out all the service fields)
-     * @param userId ID of the user
-     * @param url Link URL
+     * @param userId Number ID of the user
+     * @param url String Link URL
+     * @param sendMail Boolean if true, notifications will be send on updates
      * @returns Promise.<Link>
      */
-    createLinkFiltered = function (userId, url) {
-        return createLink(userId, url)
+    createLinkFiltered = function (userId, url, sendMail) {
+        return createLink(userId, url, sendMail)
             .then(filterLinkOutput);
     },
 
@@ -551,7 +561,7 @@ var Sequelize = require("sequelize"),
             if (link.sequences && link.sequences.length) {
                 return link.sequences;
             }
-            return promiseError('NO_SEQUENCES_FOUND');
+            return [];
         });
     },
 
@@ -561,7 +571,9 @@ var Sequelize = require("sequelize"),
                 id: linkId,
                 userId: userId
             },
-            include: [models.car]
+            include: [{
+                model: models.car
+            }]
         }).then(function (linkWithCars) {
             if (!linkWithCars) {
                 return promiseError('LINK_NOT_FOUND');
@@ -569,7 +581,7 @@ var Sequelize = require("sequelize"),
             if (linkWithCars.cars && linkWithCars.cars.length) {
                 return linkWithCars.cars;
             }
-            return promiseError('NO_CARS_FOUND');
+            return [];
         });
     },
 
