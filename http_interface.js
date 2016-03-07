@@ -327,7 +327,7 @@ var connection = db.startup().then(function (connection) {
         res.render('404');
     });
 
-    router.use(function(err, req, res, next) {
+    app.use(function(err, req, res, next) {
         console.error(err.stack);
         res.status(500);
         res.render('error');
