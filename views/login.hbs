@@ -4,6 +4,9 @@
         {{#equals error.error "AUTH_FAIL"}}
             {{>message type="danger" message="Логин или пароль введены неверно"}}
         {{/equals}}
+        {{#equals error.error "NO_LOGIN_OR_PASS"}}
+            {{>message type="danger" message="Логин или пароль отсутствуют"}}
+        {{/equals}}
 
         <form class="form-signin" action="/login" method="post">
             <h2 class="form-signin-heading">Вход</h2>
