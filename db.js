@@ -553,7 +553,8 @@ var Sequelize = require("sequelize"),
                 id: linkId,
                 userId: userId
             },
-            include: [models.sequence]
+            include: [models.sequence],
+            order: [[models.sequence, 'updatedAt', 'DESC']]
         }).then(function (link) {
             if (!link) {
                 return promiseError('LINK_NOT_FOUND');
