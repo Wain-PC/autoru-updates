@@ -7,6 +7,7 @@
     <tr>
         <th>#</th>
         <th>Ссылка</th>
+        <th>Последние 100</th>
         <th>Текущие авто</th>
         <th>Проданные авто</th>
         <th>Обновления</th>
@@ -21,6 +22,9 @@
             </td>
             <td>
                 <a href="{{this.link}}" title="{{this.link}}">{{stripUrl this.link}}</a>
+            </td>
+            <td>
+                <a class="btn btn-default" href="/link/{{this.id}}/latest">Последние обновления</a>
             </td>
             <td>
                 <a class="btn btn-default" href="/link/{{this.id}}/cars">Текущие авто</a>

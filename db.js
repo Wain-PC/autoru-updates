@@ -879,6 +879,53 @@ var Sequelize = require("sequelize"),
         console.log("Task is still running, prevent link run");
     },
 
+
+    getLatestAddedCarsForAllLinks = function (userId) {
+        //Step 1. Get all links for the user
+        //Step 2. Get ID's of this links.
+        //Step 3. Search for cars with this linkID's, order by 'created' or 'createdAt'
+        return models.link.findAll({
+            where: {
+                userId: userId
+            }
+        }).then(function (links) {
+            var ids = links.map(function (link) {
+                return link.id;
+            });
+            return models.car.findAll({
+                where: {
+                    linkId: {
+                        $in: ids
+                    }
+                },
+                order: 'created DESC',
+                limit: 100
+            })
+        })
+    },
+
+    getLatestAddedCarsForLink = function (userId, linkId) {
+        //Step 1. Check whether this link belongs to the user.
+        //Step 2. Search for cars with the given linkId, order by 'created' or 'createdAt'
+        return models.link.findOne({
+            where: {
+                userId: userId,
+                id: linkId
+            }
+        }).then(function (link) {
+            if(!link) {
+                return [];
+            }
+            return models.car.findAll({
+                where: {
+                    linkId: link.id
+                },
+                order: 'created DESC',
+                limit: 100
+            })
+        })
+    },
+
     /**
      * Moves the link to the front of the queue. The link will be executed during the next checkQueue event
      * @param link Link instance
@@ -946,5 +993,7 @@ module.exports = {
     getLinkCars: getLinkCars,
     getLinkCarsRemoved: getLinkCarsRemoved,
     getAddedCarsForSequence: getAddedCarsForSequence,
-    getRemovedCarsForSequence: getRemovedCarsForSequence
+    getRemovedCarsForSequence: getRemovedCarsForSequence,
+    getLatestAddedCarsForAllLinks: getLatestAddedCarsForAllLinks,
+    getLatestAddedCarsForLink: getLatestAddedCarsForLink
 };

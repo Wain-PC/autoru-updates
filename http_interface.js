@@ -203,6 +203,27 @@ var connection = db.startup().then(function (connection) {
         });
     });
 
+    router.get('/latest', function (req, res) {
+        db.getLatestAddedCarsForAllLinks(req.session.userId).then(function (cars) {
+            res.render('cars', {
+                columns: carsTableColumns,
+                cars: carSorter(req, cars),
+                url: req.path
+            });
+        });
+    });
+
+    router.get('/link/:linkId/latest', function (req, res, next) {
+        db.getLatestAddedCarsForLink(req.session.userId, req.params.linkId).then(function (cars) {
+            res.render('cars', {
+                columns: carsTableColumns,
+                cars: carSorter(req, cars),
+                url: req.path
+            });
+        });
+    });
+
+
     router.get('/link/:linkId/remove', function (req, res, next) {
         db.removeLink(req.session.userId, req.params.linkId).then(function (result) {
             req.session.message = 'Ссылка ' + req.params.linkId + ' успешно удалена';
