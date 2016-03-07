@@ -20,6 +20,12 @@ var express = require('express'),
                 },
                 momentFromNow: function (date) {
                     return moment(date).fromNow(); // 4 years ago
+                },
+                equals: function (one, two, options) {
+                    if (one === two) {
+                        return options.fn(this);
+                    }
+                    return options.inverse(this);
                 }
             }
         }
@@ -38,7 +44,7 @@ var express = require('express'),
         var order = req.query.orderby,
             direction = parseInt(req.query.direction);
 
-        if(isNaN(direction)) {
+        if (isNaN(direction)) {
             direction = 1;
         }
 
@@ -56,7 +62,7 @@ var express = require('express'),
             if (typeof car1[order] === 'string') {
                 return direction * car2[order].localeCompare(car1[order]);
             }
-            else if(car1[order] instanceof Date) {
+            else if (car1[order] instanceof Date) {
                 return direction * (car2[order].getTime() - car1[order].getTime())
             }
             return direction * (car2[order] - car1[order])
@@ -121,6 +127,11 @@ var connection = db.startup().then(function (connection) {
     moment.locale("ru");
 //initialize the paths of the application
 
+    router.get('/logout', function (req, res) {
+        req.session.destroy();
+        res.redirect('/login');
+    });
+
     router.get('/login', function (req, res) {
         if (req.session.loginData) {
             res.render('login', req.session.loginData);
@@ -130,11 +141,6 @@ var connection = db.startup().then(function (connection) {
         res.render('login');
     });
 
-    router.get('/logout', function (req, res) {
-        req.session.destroy();
-        res.redirect('/login');
-    });
-
 
     router.post('/login', function (req, res) {
         var login = req.body.login,
@@ -142,13 +148,53 @@ var connection = db.startup().then(function (connection) {
         if (login && password) {
             return db.authenticateUser(login, password, false).then(function (user) {
                 req.session.userId = user.id;
-                res.redirect('/');
+                req.session.save(function () {
+                    res.redirect('/');
+                });
+            }, function (error) {
+                console.log(error);
+                req.session.loginData = {
+                    login: login,
+                    error: error
+                };
+                req.session.save(function () {
+                    res.redirect('/login');
+                });
+            });
+        }
+        else {
+            res.redirect('/login');
+        }
+    });
+
+
+    router.get('/register', function (req, res) {
+        if (req.session.loginData) {
+            res.render('register', req.session.loginData);
+            delete req.session.loginData;
+            return;
+        }
+        res.render('register');
+    });
+
+
+    router.post('/register', function (req, res) {
+        var login = req.body.login,
+            password = req.body.password;
+        if (login && password) {
+            return db.createUser(login, password, true).then(function (user) {
+                req.session.userId = user.id;
+                req.session.save(function () {
+                    res.redirect('/');
+                });
             }, function (error) {
                 req.session.loginData = {
                     login: login,
                     error: error
                 };
-                res.redirect('/login');
+                req.session.save(function () {
+                    res.redirect('/register');
+                });
             });
         }
         else {
@@ -272,7 +318,7 @@ var connection = db.startup().then(function (connection) {
         db.getRemovedCarsForSequence(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
-                cars: carSorter(req, cars),
+                cars: carSorter(req, cars)
             });
         });
     });
@@ -282,5 +328,5 @@ var connection = db.startup().then(function (connection) {
     console.log("Frontend server started");
 
     app.use('/', router);
-    app.listen(port);
+    app.listen(port, 'localhost');
 });

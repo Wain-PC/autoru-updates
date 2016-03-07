@@ -1,0 +1,25 @@
+<div class="row">
+    <div class="col-sm-4 col-sm-offset-4">
+
+        {{#equals error.error "EMAIL_NOT_VALID"}}
+            {{>message type="danger" message="Неверный формат E-mail"}}
+        {{/equals}}
+        {{#equals error.error "ERROR_CREATING_USER"}}
+            {{>message type="danger" message="Ошибка создания пользователя. Попробуйте позже."}}
+        {{/equals}}
+        {{#equals error.error "LOGIN_EXISTS"}}
+            {{>message type="danger" message="Пользователь с таким E-mail уже зарегистрирован."}}
+        {{/equals}}
+
+        <form class="form-signin" action="/register" method="post">
+            <h2 class="form-signin-heading">Регистрация</h2>
+            <label for="login" class="sr-only">Email</label>
+            <input type="email" id="login" name="login" class="form-control" placeholder="E-mail" required=""
+                   autofocus="" {{#if login}} value="{{login}}"{{/if}}>
+            <label for="password" class="sr-only">Пароль</label>
+            <input type="password" id="password" name="password" class="form-control" placeholder="Password"
+                   required="">
+            <button class="btn btn-lg btn-primary btn-block" type="submit">Зарегистрироваться</button>
+        </form>
+    </div>
+</div>
