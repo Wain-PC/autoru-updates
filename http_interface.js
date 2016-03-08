@@ -287,6 +287,20 @@ var connection = db.startup().then(function (connection) {
         });
     });
 
+    router.get('/link/:linkId/sendmail', function (req, res, next) {
+        db.sendMailToLink(req.session.userId, req.params.linkId, !!req.params.sendmail).then(function (result) {
+            if(req.params.sendmail) {
+                req.session.message = 'Уведомления <b>включены</b> для ссылки ' + req.params.linkId;
+            }
+            else {
+                req.session.message = 'Уведомления <b>выключены</b> для ссылки ' + req.params.linkId;
+            }
+            req.session.save(function () {
+                res.redirect('/');
+            });
+        });
+    });
+
     router.get('/link/:linkId/carsremoved', function (req, res, next) {
         db.getLinkCarsRemoved(req.session.userId, req.params.linkId, req.query.order, req.query.direction).then(function (cars) {
             res.render('cars', {
