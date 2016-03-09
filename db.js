@@ -709,7 +709,9 @@ var Sequelize = require("sequelize"),
 
 
         if (!(carsInstancesArray instanceof Array) || !carsInstancesArray.length) {
-            return promise.then(outObj);
+            return promise.then(function () {
+                return outObj;
+            });
         }
         i = 0;
         length = carsInstancesArray.length;
