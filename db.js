@@ -695,93 +695,119 @@ var Sequelize = require("sequelize"),
 
     /**
      * This will save the array of the found cars in the DB
-     * @param carsInstancesArray Array of the found cars during the parsing sequence
+     * @param cars Array of the found cars during the parsing sequence
      * @param link Link instance
      * @returns Promise.<{created: [], removed: [], notChanged: []}>  Promise will resolve with the object with 3 arrays for the created, removed, not changed cars accordingly.
      */
-    saveCars = function (carsInstancesArray, link) {
-        var i, length, promise = Promise.resolve(),
+    saveCars = function (cars, link) {
+        var carId, car,
             linkId, outObj = {
                 created: [],
                 removed: [],
                 notChanged: []
-            };
+            },
+            carsArray = [],
+            ids = [];
 
 
-        if (!(carsInstancesArray instanceof Array) || !carsInstancesArray.length) {
-            return promise.then(function () {
-                return outObj;
-            });
+        linkId = link.id;
+
+        for (carId in cars) {
+            if (cars.hasOwnProperty(carId)) {
+                ids.push(carId);
+            }
         }
-        i = 0;
-        length = carsInstancesArray.length;
-        linkId = carsInstancesArray[0].linkId;
 
-        for (i; i < length; i++) {
-            //append linkId to each of the items
-            carsInstancesArray[i]['linkId'] = link.id;
-            carsInstancesArray[i]['sequenceLastChecked'] = link.currentSequence;
-            promise = promise.then(saveCar.bind(null, carsInstancesArray[i]));
-        }
-        return promise.then(function () {
-            //get all cars
-            return models.car.findAll({
+        //update all existing cars with latest sequenceLastChecked
+        return models.car.update(
+            {sequenceLastChecked: link.currentSequence},
+            {
                 where: {
-                    linkId: link.id
+                    id: {
+                        $in: ids
+                    },
+                    linkId: linkId
                 }
-            }).then(function (cars) {
-                var length;
-                //sort by new ones and removed ones
-                length = cars.length;
-                for (i = 0; i < length; i++) {
-
-                    //that means the car has been added during the last sequence (it's new)
-                    if (link.currentSequence === cars[i].sequenceCreated) {
-                        outObj.created.push(cars[i].get());
-                    }
-                    //that means the car has been deleted, as it hasn't been checked by the current sequence (but checked by the previous one)
-                    else if (cars[i].sequenceLastChecked === link.currentSequence - 1) {
-                        outObj.removed.push(cars[i].get());
-                    }
-
-                    else if (cars[i].sequenceLastChecked === link.currentSequence) {
-                        outObj.notChanged.push(cars[i].get());
-                    }
-                }
-                //save stats to the sequence
-                return updateSequence(link.id, link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
-                    .then(function () {
-                        return outObj;
-                    });
             })
-        });
-    },
+            //after that, we should find the cars updated and remove it from the DB
+            .then(function () {
+                return models.car.findAll({
+                    where: {
+                        linkId: linkId,
+                        sequenceLastChecked: link.currentSequence
+                    },
+                    raw: true
+                }).then(function (carsFound) {
+                    console.log('Found %s updated cars', carsFound.length);
+                    carsFound.forEach(function (car) {
+                        if(cars[car.id]) {
+                            console.log('Deleting found car %s', car.id);
+                            delete cars[car.id]
+                        }
+                    });
 
-    /**
-     * Saved one car in the DB. If the car already exists, updates its 'sequenceLastChecked' property.
-     * @param carInstance Car instance from the parser
-     * @returns Promise.<Car>  Promise will resolve with the car data (full)
-     */
-    saveCar = function (carInstance) {
-        return models.car.findOne({
-            where: {
-                id: carInstance.id,
-                linkId: carInstance.linkId
-            }
-        }).then(function (savedCar) {
-            if (savedCar) {
-                //update the car's sequenceCreated
-                savedCar.sequenceLastChecked = carInstance.sequenceLastChecked;
-                return savedCar.save();
-            }
-            else {
-                //save new car
-                carInstance.sequenceCreated = carInstance.sequenceLastChecked;
-                return models.car.create(carInstance).catch(function (err) {
-                    console.error("Error creating a car:", err);
+                    ids = [];
+                    for (carId in cars) {
+                        if (cars.hasOwnProperty(carId)) {
+                            carsArray.push(cars[carId]);
+                            ids.push(carId);
+                        }
+                    }
+                    console.log("Found %s cars not yet created", carsArray.length);
+
+
                 });
-            }
-        });
+            })
+            .then(function () {
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id,
+                        id: {
+                            $in: ids
+                        }
+                    }
+                }).then(function (cars) {
+                    console.log("CARZZZZZZZ:", cars);
+                });
+            })
+
+            //after that, bulk create all other cars
+            .then(function () {
+                return models.car.bulkCreate(carsArray)
+            })
+            .then(function () {
+                return models.car.findAll({
+                    where: {
+                        linkId: link.id
+                    }
+                }).then(function (cars) {
+                    var i, length;
+                    //sort by new ones and removed ones
+                    length = cars.length;
+                    for (i = 0; i < length; i++) {
+
+                        //that means the car has been added during the last sequence (it's new)
+                        if (link.currentSequence === cars[i].sequenceCreated) {
+                            outObj.created.push(cars[i].get());
+                        }
+                        //that means the car has been deleted, as it hasn't been checked by the current sequence (but checked by the previous one)
+                        else if (cars[i].sequenceLastChecked === link.currentSequence - 1) {
+                            outObj.removed.push(cars[i].get());
+                        }
+
+                        else if (cars[i].sequenceLastChecked === link.currentSequence) {
+                            outObj.notChanged.push(cars[i].get());
+                        }
+                    }
+                    //save stats to the sequence
+                    return updateSequence(link.id, link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
+                        .then(function () {
+                            return outObj;
+                        });
+                })
+            }, function (err) {
+                console.log(err);
+            });
     },
 
     /**
@@ -915,7 +941,7 @@ var Sequelize = require("sequelize"),
                 id: linkId
             }
         }).then(function (link) {
-            if(!link) {
+            if (!link) {
                 return [];
             }
             return models.car.findAll({

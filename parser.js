@@ -3,6 +3,7 @@
 module.exports = (function () {
     var _page, _phantom,
         totalItems,
+        totalItemsCounter,
         currentPage,
         /**
          * Core method to parse the page. It will do the parsing, then save them to DB.
@@ -14,7 +15,8 @@ module.exports = (function () {
         process = function (link, getLink, saveCars) {
             var url = link.link,
                 userId = link.userId;
-            totalItems = [];
+            totalItems = {};
+            totalItemsCounter = 0;
             currentPage = 1;
             return getLink(userId, url).then(function (link) {
                 return require('phantom').create()
@@ -77,7 +79,12 @@ module.exports = (function () {
                 .then(parsePage)
                 .then(function (items) {
                     console.log("Page found %s items", items.length);
-                    totalItems = totalItems.concat(items);
+                    items.forEach(function (item) {
+                        if(!totalItems[item.id]) {
+                            totalItemsCounter++;
+                        }
+                        totalItems[item.id] = item;
+                    });
                     return _page.evaluate(function () {
                         var pager = document.querySelector('.pager');
                         if (pager && pager.dataset.bem) {
@@ -101,7 +108,7 @@ module.exports = (function () {
                         });
                     }
                     else {
-                        console.log("Parser found %s cars", totalItems.length);
+                        console.log("Parser found %s cars", totalItemsCounter);
                         return totalItems;
                     }
                 });
