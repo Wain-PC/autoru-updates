@@ -749,6 +749,9 @@ var Sequelize = require("sequelize"),
                     ids = [];
                     for (carId in cars) {
                         if (cars.hasOwnProperty(carId)) {
+                            cars[carId]['linkId'] = link.id;
+                            cars[carId]['sequenceCreated'] = link.currentSequence;
+                            cars[carId]['sequenceLastChecked'] = link.currentSequence;
                             carsArray.push(cars[carId]);
                             ids.push(carId);
                         }
@@ -758,21 +761,9 @@ var Sequelize = require("sequelize"),
 
                 });
             })
-            .then(function () {
-                return models.car.findAll({
-                    where: {
-                        linkId: link.id,
-                        id: {
-                            $in: ids
-                        }
-                    }
-                }).then(function (cars) {
-                    console.log("CARZZZZZZZ:", cars);
-                });
-            })
-
             //after that, bulk create all other cars
             .then(function () {
+                console.log(carsArray[0]);
                 return models.car.bulkCreate(carsArray)
             })
             .then(function () {
@@ -805,8 +796,9 @@ var Sequelize = require("sequelize"),
                             return outObj;
                         });
                 })
-            }, function (err) {
-                console.log(err);
+            })
+            .catch(function (err) {
+                return outObj;
             });
     },
 
