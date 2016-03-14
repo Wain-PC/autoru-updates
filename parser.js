@@ -134,21 +134,36 @@ module.exports = (function () {
         parsePage = function () {
             return _page.evaluate(function () {
                 var list = document.querySelectorAll('tbody.listing-item'),
-                    i, length, item, itemUrl, output = [];
+                    i, length, item, itemUrl, itemImages, output = [];
                 length = list.length;
                 for (i = 0; i < length; i++) {
                     item = list[i];
                     if (item.dataset && item.dataset.bem) {
                         itemUrl = item.querySelector('.listing-item__link');
+                        itemImages = Array.prototype.slice.call(item.querySelectorAll('.brazzers-gallery__image'));
                         if(itemUrl) {
                             itemUrl = itemUrl.getAttribute('href');
                         }
+
+                        if(itemImages && itemImages.length) {
+                            itemImages = itemImages.reduce(function (array, image) {
+                                var imgArr;
+                                if(image.dataset.original) {
+                                    imgArr = image.dataset.original.split('/');
+                                    imgArr = imgArr.slice(2,imgArr.length-1);
+                                    array.push(imgArr.join('/'));
+                                }
+                                return array;
+                            },[]);
+                        }
+
                         item = JSON.parse(item.dataset.bem);
                         item = item['stat']['statParams'];
 
                         output.push({
                             id: parseInt(item['card_id'], 10),
                             url: itemUrl,
+                            images: itemImages,
                             created: new Date(item['card_date_created']),
                             updated: new Date(item['card_date_updated']),
                             mark: item['card_mark'],

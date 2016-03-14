@@ -99,6 +99,12 @@ var Sequelize = require("sequelize"),
             }
         });
 
+        models.image = sequelize.define('image', {
+            url: {
+                type: Sequelize.STRING
+            }
+        });
+
         models.car = sequelize.define('car', {
             id: {
                 type: Sequelize.BIGINT,
@@ -206,11 +212,17 @@ var Sequelize = require("sequelize"),
         });
         models.link.hasMany(models.car);
 
+
+        models.image.belongsTo(models.car, {
+            onDelete: 'cascade'
+        });
+        models.car.hasMany(models.image);
+
         for (modelName in models) {
             if (models.hasOwnProperty(modelName)) {
                 syncModelPromise = syncModelPromise.then((function (modelName) {
                     return function () {
-                        return models[modelName].sync({force: !!withClear});
+                        return models[modelName].sync({force: (!!withClear && modelName !== 'user')});
                     }
                 })(modelName));
             }
@@ -700,6 +712,7 @@ var Sequelize = require("sequelize"),
      * @returns Promise.<{created: [], removed: [], notChanged: []}>  Promise will resolve with the object with 3 arrays for the created, removed, not changed cars accordingly.
      */
     saveCars = function (cars, link) {
+        console.log(cars[0]);
         var carId, car,
             linkId, outObj = {
                 created: [],
@@ -707,7 +720,8 @@ var Sequelize = require("sequelize"),
                 notChanged: []
             },
             carsArray = [],
-            ids = [];
+            ids = [],
+            images = [];
 
 
         linkId = link.id;
@@ -747,6 +761,7 @@ var Sequelize = require("sequelize"),
                     });
 
                     ids = [];
+                    images = [];
                     for (carId in cars) {
                         if (cars.hasOwnProperty(carId)) {
                             cars[carId]['linkId'] = link.id;
@@ -754,6 +769,12 @@ var Sequelize = require("sequelize"),
                             cars[carId]['sequenceLastChecked'] = link.currentSequence;
                             carsArray.push(cars[carId]);
                             ids.push(carId);
+                            cars[carId].images.forEach(function (imageUrl) {
+                                images.push({
+                                    carId: carId,
+                                    url: imageUrl
+                                });
+                            });
                         }
                     }
                     console.log("Found %s cars not yet created", carsArray.length);
@@ -764,7 +785,9 @@ var Sequelize = require("sequelize"),
             //after that, bulk create all other cars
             .then(function () {
                 console.log(carsArray[0]);
-                return models.car.bulkCreate(carsArray)
+                return models.car.bulkCreate(carsArray).then(function () {
+                   return  models.image.bulkCreate(images);
+                });
             })
             .then(function () {
                 return models.car.findAll({
@@ -918,9 +941,13 @@ var Sequelize = require("sequelize"),
                         $in: ids
                     }
                 },
+                include: [models.image],
                 order: 'created DESC',
                 limit: 100
             })
+        }).then(function (cars) {
+            console.log(cars);
+            return cars;
         })
     },
 

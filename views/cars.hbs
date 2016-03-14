@@ -3,6 +3,7 @@
 <table class="table table-striped">
     <thead>
     <tr>
+        <th>Изображения</th>
     {{#each columns}}
         <th>{{this.title}}<a href="{{../url}}?orderby={{this.id}}&direction=0">▲</a><a href="{{url}}?orderby={{this.id}}&direction=1">▼</a></th>
     {{/each}}
@@ -11,6 +12,11 @@
     <tbody>
     {{#each cars}}
         <tr>
+            <td>
+                {{#each this.images}}
+                    <a href="https://{{this.url}}/1200x900"><img src="https://{{this.url}}/320x240"/></a>
+                {{/each}}
+            </td>
             <td>
                 <a href="{{this.url}}">{{this.id}}</a>
             </td>
