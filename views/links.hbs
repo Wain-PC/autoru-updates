@@ -2,6 +2,7 @@
 {{#if message}}
     {{>message type="info" message=message}}
 {{/if}}
+<div class="table-responsive">
 <table class="table table-striped">
     <thead>
     <tr>
@@ -43,6 +44,7 @@
     {{/each}}
     </tbody>
 </table>
+</div>
 
 <div class="modal fade" id="confirm-delete" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
     <div class="modal-dialog">

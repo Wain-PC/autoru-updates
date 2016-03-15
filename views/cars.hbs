@@ -1,47 +1,43 @@
 {{>navbar}}
 
-<table class="table table-striped">
-    <thead>
-    <tr>
-        <th>Изображения</th>
-    {{#each columns}}
-        <th>{{this.title}}<a href="{{../url}}?orderby={{this.id}}&direction=0">▲</a><a href="{{url}}?orderby={{this.id}}&direction=1">▼</a></th>
-    {{/each}}
-    </tr>
-    </thead>
-    <tbody>
-    {{#each cars}}
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
         <tr>
-            <td>
-                {{#each this.images}}
-                    <a href="https://{{this.url}}/1200x900"><img src="https://{{this.url}}/320x240"/></a>
-                {{/each}}
-            </td>
-            <td>
-                <a href="{{this.url}}">{{this.id}}</a>
-            </td>
-            <td>
-                {{this.mark}} {{this.model}}
-            </td>
-            <td>
-                {{this.generation}}
-            </td>
-            <td>
-                {{this.year}}
-            </td>
-            <td>
-                {{this.run}}
-            </td>
-            <td>
-                {{this.price}}
-            </td>
-            <td>
-                {{momentFromNow this.created}}
-            </td>
-            <td>
-                {{momentFromNow this.updated}}
-            </td>
+            <th>Изображения</th>
+        {{#each columns}}
+            <th>{{this.title}}<a href="{{../url}}?orderby={{this.id}}&direction=0">▲</a><a href="{{url}}?orderby={{this.id}}&direction=1">▼</a></th>
+        {{/each}}
         </tr>
-    {{/each}}
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+        {{#each cars}}
+            <tr>
+                <td>
+                {{#if this.images}}
+                <a href="/car/{{this.id}}"><img style="max-height: 150px;" src="https://{{this.images.0.url}}/320x240"/></a>
+                {{else}}
+                <a href="/car/{{this.id}}"><img style="max-height: 150px;" src="/images/no_image.png"></a>
+                {{/if}}
+                </td>
+                <td>
+                    <a href="{{this.url}}">{{this.id}}</a>
+                </td>
+                <td>
+                    {{this.mark}} {{this.model}} {{this.generation}}
+                </td>
+                <td>
+                    {{this.year}} <br> {{money this.run}} {{#if this.owners}} <br> {{this.owners}} {{/if}}
+                </td>
+                <td>
+                    {{money this.price}}
+                </td>
+                <td>
+                    {{momentFromNow this.created}} <br>
+                    {{momentFromNow this.updated}}
+                </td>
+            </tr>
+        {{/each}}
+        </tbody>
+    </table>
+</div>

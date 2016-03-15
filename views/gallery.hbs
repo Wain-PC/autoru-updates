@@ -1,0 +1,78 @@
+{{>navbar}}
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="table-responsive">
+        <table class="table table-striped">
+            <tbody>
+            <tr>
+                <td>
+                    Модель
+                </td>
+                <td>
+                    {{car.mark}} {{car.model}} {{car.generation}}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Год
+                </td>
+                <td>
+                    {{car.year}}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Пробег
+                </td>
+                <td>
+                    {{money car.run}}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Цена
+                </td>
+                <td>
+                    {{money car.price}}
+                </td>
+            </tr>
+            {{#if car.owners}}
+            <tr>
+                <td>
+                    Владельцы
+                </td>
+                <td>
+                    {{car.owners}}
+                </td>
+            </tr>
+            {{/if}}
+            <tr>
+                <td>
+                    Добавлена
+                </td>
+                <td>
+                    {{momentFromNow car.created}}
+                </td>
+            </tr>
+            <tr>
+                <td>
+                    Обновлена
+                </td>
+                <td>
+                    {{momentFromNow car.updated}}
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        {{#each car.images}}
+        <div><img style="width: 100%; height: auto;" src="https://{{this.url}}/1200x900"/></div>
+        {{/each}}
+    </div>
+</div>

@@ -26,6 +26,17 @@ var express = require('express'),
                         return options.fn(this);
                     }
                     return options.inverse(this);
+                },
+                money: function (string) {
+                    string = string.toString().split('').reverse();
+                    string = string.reduce(function (arr, item, index) {
+                        if(index && index%3 === 0) {
+                            arr.push(' ');
+                        }
+                        arr.push(item);
+                        return arr
+                    },[]);
+                    return string.reverse().join('');
                 }
             }
         }
@@ -79,16 +90,8 @@ var express = require('express'),
             title: 'Марка/модель'
         },
         {
-            id: 'generation',
-            title: 'Поколение'
-        },
-        {
-            id: 'year',
-            title: 'Год'
-        },
-        {
             id: 'run',
-            title: 'Пробег'
+            title: 'Год/пробег/владельцы'
         },
         {
             id: 'price',
@@ -96,11 +99,7 @@ var express = require('express'),
         },
         {
             id: 'created',
-            title: 'Дата добавления'
-        },
-        {
-            id: 'updated',
-            title: 'Дата обновления'
+            title: 'Добавлено/обновлено'
         }
     ];
 
@@ -112,6 +111,7 @@ var connection = db.startup().then(function (connection) {
         expiration: 24 * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session (24 hours)
     });
     var app = express();
+    app.use(express.static('static'));
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(bodyParser.json());
     app.use(cookieParser());
@@ -332,6 +332,15 @@ var connection = db.startup().then(function (connection) {
             res.render('cars', {
                 columns: carsTableColumns,
                 cars: carSorter(req, cars)
+            });
+        });
+    });
+
+
+    router.get('/car/:carId', function (req, res, next) {
+        db.getCarById(req.session.userId, req.params.carId).then(function (car) {
+            res.render('gallery', {
+                car: car
             });
         });
     });

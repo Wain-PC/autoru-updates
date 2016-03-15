@@ -598,6 +598,24 @@ var Sequelize = require("sequelize"),
         });
     },
 
+
+//TODO: possible security issue: one can watch other user's cars, not only that belong to himself
+    getCarById = function (userId, carId) {
+        return models.car.findOne({
+            where: {
+                id: carId
+            },
+            include: [{
+                model: models.image
+            }]
+        }).then(function (car) {
+            if (!car) {
+                return promiseError('CAR_NOT_FOUND');
+            }
+            return car;
+        });
+    },
+
     getLinkCarsRemoved = function (userId, linkId) {
         return models.link.findOne({
             where: {
@@ -623,7 +641,8 @@ var Sequelize = require("sequelize"),
                         sequenceLastChecked: {
                             $lt: maxSequenceId.orderId
                         }
-                    }
+                    },
+                    include: [models.image]
                 });
             })
             .then(function (cars) {
@@ -656,7 +675,8 @@ var Sequelize = require("sequelize"),
                     where: {
                         linkId: link.id,
                         sequenceCreated: sequenceOrderId
-                    }
+                    },
+                    include: [models.image]
                 });
             })
             .then(function (cars) {
@@ -697,7 +717,8 @@ var Sequelize = require("sequelize"),
                     where: {
                         linkId: link.id,
                         sequenceLastChecked: prevSequenceOrderId
-                    }
+                    },
+                    include: [models.image]
                 });
             })
             .then(function (cars) {
@@ -754,7 +775,7 @@ var Sequelize = require("sequelize"),
                 }).then(function (carsFound) {
                     console.log('Found %s updated cars', carsFound.length);
                     carsFound.forEach(function (car) {
-                        if(cars[car.id]) {
+                        if (cars[car.id]) {
                             console.log('Deleting found car %s', car.id);
                             delete cars[car.id]
                         }
@@ -786,7 +807,7 @@ var Sequelize = require("sequelize"),
             .then(function () {
                 console.log(carsArray[0]);
                 return models.car.bulkCreate(carsArray).then(function () {
-                   return  models.image.bulkCreate(images);
+                    return models.image.bulkCreate(images);
                 });
             })
             .then(function () {
@@ -967,6 +988,7 @@ var Sequelize = require("sequelize"),
                 where: {
                     linkId: link.id
                 },
+                include: [models.image],
                 order: 'created DESC',
                 limit: 100
             })
@@ -1037,6 +1059,7 @@ module.exports = {
     createUser: createUser,
     authenticateUser: authenticateUser,
     getUserByAuthKey: getUserByAuthKey,
+    getCarById: getCarById,
     getLinkCars: getLinkCars,
     getLinkCarsRemoved: getLinkCarsRemoved,
     getAddedCarsForSequence: getAddedCarsForSequence,
