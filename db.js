@@ -27,7 +27,7 @@ var Sequelize = require("sequelize"),
                 idle: 10000
             },
             storage: dbPath,
-            logging: true
+            logging: false
         });
         return sequelize;
     },
