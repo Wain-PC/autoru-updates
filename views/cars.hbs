@@ -15,7 +15,7 @@
             <tr>
                 <td>
                 {{#if this.images}}
-                <a href="/car/{{this.id}}"><img style="max-height: 150px;" src="https://{{this.images.0.url}}/320x240"/></a>
+                <a href="/car/{{this.id}}"><img style="max-height: 150px;" src="https://{{latest this.images "url"}}/320x240"/></a>
                 {{else}}
                 <a href="/car/{{this.id}}"><img style="max-height: 150px;" src="/images/no_image.png"></a>
                 {{/if}}

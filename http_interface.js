@@ -27,6 +27,9 @@ var express = require('express'),
                     }
                     return options.inverse(this);
                 },
+                latest: function (array, param) {
+                    return array[array.length-1][param];
+                },
                 money: function (string) {
                     string = string.toString().split('').reverse();
                     string = string.reduce(function (arr, item, index) {
