@@ -27,7 +27,7 @@ var Sequelize = require("sequelize"),
                 idle: 10000
             },
             storage: dbPath,
-            logging: false
+            logging: true
         });
         return sequelize;
     },
@@ -733,7 +733,6 @@ var Sequelize = require("sequelize"),
      * @returns Promise.<{created: [], removed: [], notChanged: []}>  Promise will resolve with the object with 3 arrays for the created, removed, not changed cars accordingly.
      */
     saveCars = function (cars, link) {
-        console.log(cars[0]);
         var carId, car,
             linkId, outObj = {
                 created: [],
@@ -805,7 +804,6 @@ var Sequelize = require("sequelize"),
             })
             //after that, bulk create all other cars
             .then(function () {
-                console.log(carsArray[0]);
                 return models.car.bulkCreate(carsArray).then(function () {
                     return models.image.bulkCreate(images);
                 });
@@ -861,12 +859,12 @@ var Sequelize = require("sequelize"),
                     //let's assume the execution takes 30 sec.
                     var nowTime = new Date().getTime(), promisesArray = [];
                     console.log("Found %s links on startup:", links.length);
-                    links.forEach(function (link, index) {
+                    /*links.forEach(function (link, index) {
                         if (!link) return;
                         link.nextRun = new Date(nowTime + index * queueCheckInterval);
                         promisesArray.push(link.save());
                     });
-                    return Promise.all(promisesArray);
+                    return Promise.all(promisesArray);*/
                 })
                 .then(function () {
                     queueCheckIntervalTimer = setInterval(checkQueue, queueCheckInterval);
@@ -963,11 +961,10 @@ var Sequelize = require("sequelize"),
                     }
                 },
                 include: [models.image],
-                order: 'created DESC',
+                order: [['created', 'DESC']],
                 limit: 100
             })
         }).then(function (cars) {
-            console.log(cars);
             return cars;
         })
     },
@@ -989,7 +986,7 @@ var Sequelize = require("sequelize"),
                     linkId: link.id
                 },
                 include: [models.image],
-                order: 'created DESC',
+                order: [['created', 'DESC']],
                 limit: 100
             })
         })
