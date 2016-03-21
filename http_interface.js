@@ -251,6 +251,43 @@ var connection = db.startup().then(function (connection) {
         });
     });
 
+
+    router.get('/link/:linkId/settings', function (req, res) {
+        var order = req.query.orderby,
+            direction = req.query.direction;
+        db.getLinkById(req.session.userId, req.params.linkId).then(function (link) {
+
+            res.render('settings', {
+                link: link,
+                runps: [1,5,10,15,20,30,45,60],
+                message: req.session.message
+            });
+            delete req.session.message;
+        });
+    });
+
+
+    router.post('/link/:linkId/settings', function (req, res) {
+        var runPeriod = req.body.runperiod,
+            sendMail = req.body.sendmail === 'true';
+
+        return db.updateLink(req.session.userId, req.params.linkId, runPeriod, sendMail)
+            .then(function (response) {
+                if(response.result && response.result == 1) {
+                    console.log("Sucess!");
+                    req.session.message = 'Параметры успешно обновлены для ссылки ' + req.params.linkId;
+                }
+                else {
+                    console.log("Error!");
+                    req.session.error = 'Ошибка обновления параметров для ссылки ' + req.params.linkId;
+                }
+                req.session.save(function () {
+                    console.log("Sess saved");
+                    res.redirect('/link/'+ req.params.linkId +'/settings');
+                });
+            });
+    });
+
     router.get('/latest', function (req, res) {
         db.getLatestAddedCarsForAllLinks(req.session.userId).then(function (cars) {
             res.render('cars', {

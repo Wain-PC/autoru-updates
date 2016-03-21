@@ -9,7 +9,7 @@ var Sequelize = require("sequelize"),
         link: null
     },
     runningJob = null,
-    //check queue every 5 seconds
+//check queue every 5 seconds
     queueCheckInterval = 5,
     queueCheckIntervalTimer = null,
     passSalt = 'H;fd6%idsDbLT#(!^M@F*S)',
@@ -416,6 +416,35 @@ var Sequelize = require("sequelize"),
 
 
     /**
+     * Updates link params in the DB.
+     * @param userId ID of the user
+     * @param linkId Link ID
+     * @param runPeriod Update period of the link
+     * @param sendMail If true, send notifications when new cars arrive
+     * @returns Promise.<result> Resolves with {result} object, where result property contains true if the link has been updated, false otherwise
+     */
+    updateLink = function (userId, linkId, runPeriod, sendMail) {
+        console.log(runPeriod, sendMail);
+        return getUserById(userId).then(function (user) {
+            return models.link.update(
+                {
+                    runPeriod: runPeriod,
+                    sendMail: !!sendMail
+                },
+                {
+                    where: {
+                        id: linkId,
+                        userId: user.id
+                    }
+                }).then(function (result) {
+                return {
+                    result: !!result
+                }
+            })
+        });
+    },
+
+    /**
      * Removes the link from the DB. This will remove all the associated cars (cascade delete).
      * @param userId ID of the user
      * @param linkId Link ID
@@ -463,12 +492,12 @@ var Sequelize = require("sequelize"),
     getLinkAndCreateSequence = function (userId, url) {
         return createLink(userId, url)
             .then(function (link) {
-            return createSequence(link.id)
-                .then(function (sequence) {
-                link.currentSequence = sequence.orderId;
-                return link;
+                return createSequence(link.id)
+                    .then(function (sequence) {
+                        link.currentSequence = sequence.orderId;
+                        return link;
+                    });
             });
-        });
     },
 
     /**
@@ -588,7 +617,8 @@ var Sequelize = require("sequelize"),
                 userId: userId
             },
             include: [{
-                model: models.car
+                model: models.car,
+                include: [models.image]
             }]
         }).then(function (linkWithCars) {
             if (!linkWithCars) {
@@ -949,14 +979,14 @@ var Sequelize = require("sequelize"),
                     var nowTime = new Date().getTime(), promisesArray = [];
                     console.log("Found %s links on startup:", links.length);
                     /*links.forEach(function (link, index) {
-                        if (!link) return;
-                        link.nextRun = new Date(nowTime + index * 1000 * queueCheckInterval);
-                        promisesArray.push(link.save());
-                    });
-                    return Promise.all(promisesArray);*/
+                     if (!link) return;
+                     link.nextRun = new Date(nowTime + index * 1000 * queueCheckInterval);
+                     promisesArray.push(link.save());
+                     });
+                     return Promise.all(promisesArray);*/
                 })
                 .then(function () {
-                    queueCheckIntervalTimer = setInterval(checkQueue, 1000* queueCheckInterval);
+                    queueCheckIntervalTimer = setInterval(checkQueue, 1000 * queueCheckInterval);
                     return checkQueue();
                 });
 
@@ -969,7 +999,7 @@ var Sequelize = require("sequelize"),
      */
     startQueue = function () {
         console.log("Queue started");
-        queueCheckIntervalTimer = setInterval(checkQueue, 1000*queueCheckInterval);
+        queueCheckIntervalTimer = setInterval(checkQueue, 1000 * queueCheckInterval);
         checkQueue();
         return queueCheckIntervalTimer;
     },
@@ -1088,7 +1118,7 @@ var Sequelize = require("sequelize"),
                         return checkQueue();
                     })
                 });
-                //.then(parser.closePage);
+            //.then(parser.closePage);
         }
     },
 
@@ -1176,7 +1206,8 @@ var Sequelize = require("sequelize"),
         return {
             id: link.id,
             url: link.link,
-            sendMail: link.sendMail
+            sendMail: link.sendMail,
+            runPeriod: link.runPeriod
         };
     },
 
@@ -1196,6 +1227,7 @@ module.exports = {
     createLink: createLinkFiltered,
     runLinkById: runLinkById,
     getLinkSequences: getLinkSequences,
+    updateLink: updateLink,
     removeLink: removeLink,
     sendMailToLink: sendMailToLink,
     initQueue: initQueue,

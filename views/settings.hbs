@@ -1,0 +1,30 @@
+{{>navbar}}
+<div class="row">
+    <div class="col-sm-4 col-sm-offset-4">
+
+        {{#equals error.error "SETTINGS_FAIL"}}
+            {{>message type="danger" message="Логин или пароль введены неверно"}}
+        {{/equals}}
+        {{#if message}}
+            {{>message type="info" message=message}}
+        {{/if}}
+
+        <form class="form-signin" action="/link/{{link.id}}/settings" method="post">
+                    <h2 class="form-signin-heading">Настройки ссылки {{link.id}}</h2>
+                    <div>{{link.link}}</div>
+                    <label for="runperiod">Время обновления</label>
+                    <select type="runperiod" id="runperiod" name="runperiod" class="form-control" placeholder="Период обновления (мин)"
+                    value="{{link.runPeriod}}">
+                    {{#each runps}}
+                        <option value="{{this}}" {{#equals this ../link.runPeriod}} selected="selected"{{/equals}}>{{this}} мин.</option>
+                    {{/each}}
+                    </select>
+                    <div class="checkbox">
+                        <label>
+                            <input name="sendmail" type="checkbox" value="true" checked="checked"> Уведомления при обновлениях
+                        </label>
+                    </div>
+                    <button class="btn btn-lg btn-primary btn-block" type="submit">Сохранить</button>
+                </form>
+    </div>
+</div>
