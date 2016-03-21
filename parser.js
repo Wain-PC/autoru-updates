@@ -19,17 +19,8 @@ module.exports = (function () {
             totalItemsCounter = 0;
             currentPage = 1;
             return getLink(userId, url).then(function (link) {
-                return require('phantom').create()
-                    //create new Phantom page
-                    .then(function (phantom) {
-                        _phantom = phantom;
-                        return phantom.createPage();
-                    })
-                    //open URL
-                    .then(function (page) {
-                        _page = page;
-                    })
-                    //parse the cars from URL
+                return createPage()
+                //parse the cars from URL
                     .then(function () {
                         return processPages(url);
                     })
@@ -49,6 +40,33 @@ module.exports = (function () {
         },
 
         /**
+         * Creates the PtantomJS page
+         */
+        createPage = function () {
+            if (_phantom) {
+                if (_page) {
+                    return _page
+                }
+                else {
+                    return phantom.createPage()
+                        .then(function (page) {
+                            return _page = page;
+                        });
+                }
+            }
+
+            return require('phantom').create()
+                //create new Phantom page
+                .then(function (phantom) {
+                    _phantom = phantom;
+                    return phantom.createPage();
+                })
+                .then(function (page) {
+                    return _page = page;
+                })
+        },
+
+        /**
          * Closes the PtantomJS page
          */
         closePage = function () {
@@ -60,8 +78,8 @@ module.exports = (function () {
             }
         },
 
-        /**
-         */
+    /**
+     */
 
         /**
          * Processes all the pages for the current filter - one by one
@@ -77,40 +95,43 @@ module.exports = (function () {
         processPages = function (url) {
             return _page.open(url)
                 .then(parsePage)
-                .then(function (items) {
-                    console.log("Page found %s items", items.length);
-                    items.forEach(function (item) {
-                        if(!totalItems[item.id]) {
+                .then(function (output) {
+                    console.log("Page found %s items", output.cars.length);
+                    output.cars.forEach(function (item) {
+                        if (!totalItems[item.id]) {
                             totalItemsCounter++;
                         }
                         totalItems[item.id] = item;
                     });
-                    return _page.evaluate(function () {
-                        var pager = document.querySelector('.pager');
-                        if (pager && pager.dataset.bem) {
-                            pager = JSON.parse(pager.dataset.bem).pager;
-                            currentPage = pager.current;
-                            //we have more pages to go, create new URL and open it
-                            if (currentPage < pager.max) {
-                                return pager;
-                            }
-                        }
-                        return false;
-
-                    });
+                    return output.pager;
                 })
                 .then(function (pager) {
-                    if (pager) {
+                    if (pager && pager.current < pager.max) {
                         //wait 1 sec before opening the next page
                         //opening the pages too quickly can result in a BAN. We don't want a ban really
                         return promiseTimeout(1000).then(function () {
                             return processPages(createUrl(url, pager.current + 1));
                         });
                     }
-                    else {
-                        console.log("Parser found %s cars", totalItemsCounter);
-                        return totalItems;
-                    }
+                    console.log("Parser found %s cars", totalItemsCounter);
+                    return totalItems;
+                });
+        },
+
+        processPage = function (url, pageNum) {
+            if (!pageNum) {
+                pageNum = 1;
+            }
+            url = createUrl(url, pageNum);
+            return _page.open(url)
+                .then(parsePage)
+                .then(function (output) {
+                    var carsIds = Object.keys(output.cars);
+                    console.log("Page found %s items", carsIds.length);
+                    //this is a hack. Old cars are being shown
+                    return promiseTimeout(2000).then(function () {
+                        return output;
+                    });
                 });
         },
 
@@ -134,34 +155,38 @@ module.exports = (function () {
         parsePage = function () {
             return _page.evaluate(function () {
                 var list = document.querySelectorAll('tbody.listing-item'),
-                    i, length, item, itemUrl, itemImages, output = [];
+                    i, length, item, itemUrl, itemImages, id,
+                    output = {
+                        cars: {},
+                        pager: {}
+                    };
                 length = list.length;
                 for (i = 0; i < length; i++) {
                     item = list[i];
                     if (item.dataset && item.dataset.bem) {
                         itemUrl = item.querySelector('.listing-item__link');
                         itemImages = Array.prototype.slice.call(item.querySelectorAll('.brazzers-gallery__image'));
-                        if(itemUrl) {
+                        if (itemUrl) {
                             itemUrl = itemUrl.getAttribute('href');
                         }
 
-                        if(itemImages && itemImages.length) {
+                        if (itemImages && itemImages.length) {
                             itemImages = itemImages.reduce(function (array, image) {
                                 var imgArr;
-                                if(image.dataset.original) {
+                                if (image.dataset.original) {
                                     imgArr = image.dataset.original.split('/');
-                                    imgArr = imgArr.slice(2,imgArr.length-1);
+                                    imgArr = imgArr.slice(2, imgArr.length - 1);
                                     array.push(imgArr.join('/'));
                                 }
                                 return array;
-                            },[]);
+                            }, []);
                         }
 
                         item = JSON.parse(item.dataset.bem);
                         item = item['stat']['statParams'];
-
-                        output.push({
-                            id: parseInt(item['card_id'], 10),
+                        id = parseInt(item['card_id'], 10);
+                        output.cars[id] = {
+                            id: id,
                             url: itemUrl,
                             images: itemImages,
                             created: new Date(item['card_date_created']),
@@ -178,8 +203,14 @@ module.exports = (function () {
                             vin: item['card_vin'] === 'true',
                             checked: item['card_checked'] === 'true',
                             userId: parseInt(item['card_owner_uid'], 10)
-                        });
+                        };
                     }
+                }
+
+
+                var pager = document.querySelector('.pager');
+                if (pager && pager.dataset.bem) {
+                    output.pager = JSON.parse(pager.dataset.bem).pager;
                 }
                 return output;
             });
@@ -197,7 +228,10 @@ module.exports = (function () {
         };
 
     return {
-        process: process
+        process: process,
+        processPage: processPage,
+        createPage: createPage,
+        closePage: closePage
     };
 
 })();

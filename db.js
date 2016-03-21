@@ -9,7 +9,8 @@ var Sequelize = require("sequelize"),
         link: null
     },
     runningJob = null,
-    queueCheckInterval = 30000,
+    //check queue every 5 seconds
+    queueCheckInterval = 5,
     queueCheckIntervalTimer = null,
     passSalt = 'H;fd6%idsDbLT#(!^M@F*S)',
 
@@ -460,8 +461,10 @@ var Sequelize = require("sequelize"),
      * @returns Promise.<Link> Promise will resolve with the link data (full)
      */
     getLinkAndCreateSequence = function (userId, url) {
-        return createLink(userId, url).then(function (link) {
-            return createSequence(link.id).then(function (sequence) {
+        return createLink(userId, url)
+            .then(function (link) {
+            return createSequence(link.id)
+                .then(function (sequence) {
                 link.currentSequence = sequence.orderId;
                 return link;
             });
@@ -772,10 +775,10 @@ var Sequelize = require("sequelize"),
                     },
                     raw: true
                 }).then(function (carsFound) {
-                    console.log('Found %s updated cars', carsFound.length);
+                    //console.log('Found %s updated cars', carsFound.length);
                     carsFound.forEach(function (car) {
                         if (cars[car.id]) {
-                            console.log('Deleting found car %s', car.id);
+                            //console.log('Deleting found car %s', car.id);
                             delete cars[car.id]
                         }
                     });
@@ -797,7 +800,7 @@ var Sequelize = require("sequelize"),
                             });
                         }
                     }
-                    console.log("Found %s cars not yet created", carsArray.length);
+                    //console.log("Found %s cars not yet created", carsArray.length);
 
 
                 });
@@ -845,6 +848,92 @@ var Sequelize = require("sequelize"),
     },
 
     /**
+     * All-new, fast saver
+     * @param cars Object Cars object from the parser
+     * @param link Link Link to append cars to
+     * @returns Integer Number of new cars saved to the DB
+     */
+    saveCarsFast = function (cars, link) {
+        var carId, car,
+            linkId,
+            carsArray = [],
+            ids = [],
+            images = [];
+
+        linkId = link.id;
+
+        for (carId in cars) {
+            if (cars.hasOwnProperty(carId)) {
+                ids.push(carId);
+            }
+        }
+
+        //update all existing cars with latest sequenceLastChecked
+        return models.car.update(
+            {sequenceLastChecked: link.currentSequence},
+            {
+                where: {
+                    id: {
+                        $in: ids
+                    },
+                    linkId: linkId
+                }
+            })
+            //after that, we should find the cars updated and remove it from the DB
+            .then(function () {
+                return models.car.findAll({
+                    where: {
+                        linkId: linkId,
+                        sequenceLastChecked: link.currentSequence
+                    },
+                    raw: true
+                }).then(function (carsFound) {
+                    //console.log('Found %s updated cars', carsFound.length);
+                    carsFound.forEach(function (car) {
+                        if (cars[car.id]) {
+                            //console.log('Deleting found car %s', car.id);
+                            delete cars[car.id]
+                        }
+                    });
+
+                    ids = [];
+                    images = [];
+                    for (carId in cars) {
+                        if (cars.hasOwnProperty(carId)) {
+                            cars[carId]['linkId'] = link.id;
+                            cars[carId]['sequenceCreated'] = link.currentSequence;
+                            cars[carId]['sequenceLastChecked'] = link.currentSequence;
+                            carsArray.push(cars[carId]);
+                            ids.push(carId);
+                            cars[carId].images.forEach(function (imageUrl) {
+                                images.push({
+                                    carId: carId,
+                                    url: imageUrl
+                                });
+                            });
+                        }
+                    }
+                    console.log("Found %s cars not yet created", carsArray.length);
+
+
+                });
+            })
+            //after that, bulk create all other cars
+            .then(function () {
+                return models.car.bulkCreate(carsArray).then(function () {
+                    return models.image.bulkCreate(images);
+                });
+            })
+            .then(function () {
+                return carsArray.length;
+            })
+            .catch(function (err) {
+                console.error(err, err.stack);
+                return 0;
+            });
+    },
+
+    /**
      * Initializes the parsing queue. This will use separate DB connection.
      * @param purgeDB If true, cleanup the DB on startup.
      * @returns Promise Promise will resolve with the array of the links added to the queue
@@ -861,13 +950,13 @@ var Sequelize = require("sequelize"),
                     console.log("Found %s links on startup:", links.length);
                     /*links.forEach(function (link, index) {
                         if (!link) return;
-                        link.nextRun = new Date(nowTime + index * queueCheckInterval);
+                        link.nextRun = new Date(nowTime + index * 1000 * queueCheckInterval);
                         promisesArray.push(link.save());
                     });
                     return Promise.all(promisesArray);*/
                 })
                 .then(function () {
-                    queueCheckIntervalTimer = setInterval(checkQueue, queueCheckInterval);
+                    queueCheckIntervalTimer = setInterval(checkQueue, 1000* queueCheckInterval);
                     return checkQueue();
                 });
 
@@ -880,7 +969,7 @@ var Sequelize = require("sequelize"),
      */
     startQueue = function () {
         console.log("Queue started");
-        queueCheckIntervalTimer = setInterval(checkQueue, queueCheckInterval);
+        queueCheckIntervalTimer = setInterval(checkQueue, 1000*queueCheckInterval);
         checkQueue();
         return queueCheckIntervalTimer;
     },
@@ -909,9 +998,9 @@ var Sequelize = require("sequelize"),
             }
 
             //if the time has come to execute the item, run in
-            console.log("Check queue found latest link:", link.id, link.nextRun, link.nextRun.getTime());
+            //console.log("Check queue found latest link:", link.id, link.nextRun, link.nextRun.getTime());
             if (!link.nextRun || link.nextRun.getTime() < nowTime) {
-                return executeQueueItem(link);
+                return executeQueueItemFast(link);
             }
             return false;
         });
@@ -938,7 +1027,69 @@ var Sequelize = require("sequelize"),
                     })
                 });
         }
-        console.log("Task is still running, prevent link run");
+        //console.log("Task is still running, prevent link run");
+    },
+
+    crawlPage = function (link, pageNum, totalCars) {
+        var maxPage, carsCount;
+        if (!pageNum) {
+            pageNum = 1;
+        }
+        if (!totalCars) {
+            totalCars = 0;
+        }
+        console.log("Crawling page %s (%s found previously)", pageNum, totalCars);
+        return parser.processPage(link.link, pageNum)
+            .then(function (output) {
+                maxPage = output.pager && output.pager.max;
+                carsCount = Object.keys(output.cars).length;
+                return saveCarsFast(output.cars, link);
+            })
+            .then(function (newCarsCount) {
+                totalCars += newCarsCount;
+                console.log("MaxPage: %s PageNum: %s NewCars: %s", maxPage, pageNum, newCarsCount);
+                //beware of the MAGIC constant. It's the number of cars on one page
+                if (newCarsCount === 37) {
+                    return crawlPage(link, ++pageNum, totalCars);
+                }
+                //repeat if that's NOT the last page, 0 is probably an error
+                else if (!maxPage || (carsCount === 0 && pageNum < maxPage)) {
+                    return crawlPage(link, pageNum, totalCars);
+                }
+                return totalCars;
+            });
+    },
+
+
+    executeQueueItemFast = function (link) {
+        if (!link || !link.id) {
+            return false;
+        }
+        if (!runningJob) {
+            runningJob = link.id;
+            return getLinkAndCreateSequence(link.userId, link.link)
+                .then(function (newLink) {
+                    link = newLink;
+                })
+                .then(parser.createPage)
+                .then(function () {
+                    return crawlPage(link);
+                })
+                .then(function (newCarsCounter) {
+                    return updateSequence(link.id, link.currentSequence, newCarsCounter);
+                })
+
+                .then(function () {
+                    //update nextRun of the link
+                    var nowTime = new Date().getTime();
+                    link.nextRun = new Date(nowTime + link.runPeriod * 60000);
+                    return link.save().then(function () {
+                        runningJob = false;
+                        return checkQueue();
+                    })
+                });
+                //.then(parser.closePage);
+        }
     },
 
 
@@ -964,9 +1115,7 @@ var Sequelize = require("sequelize"),
                 order: [['created', 'DESC']],
                 limit: 100
             })
-        }).then(function (cars) {
-            return cars;
-        })
+        });
     },
 
     getLatestAddedCarsForLink = function (userId, linkId) {
