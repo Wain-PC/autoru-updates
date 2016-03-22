@@ -1083,7 +1083,7 @@ var Sequelize = require("sequelize"),
                     return crawlPage(link, ++pageNum, totalCars);
                 }
                 //repeat if that's NOT the last page, 0 is probably an error
-                else if (!maxPage || (carsCount === 0 && pageNum < maxPage)) {
+                else if (maxPage && carsCount === 0 && pageNum < maxPage) {
                     return crawlPage(link, pageNum, totalCars);
                 }
                 return totalCars;
