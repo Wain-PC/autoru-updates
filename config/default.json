@@ -1,0 +1,63 @@
+{
+  //Default application config
+  "config": {
+    "db": {
+      "dialect": "sqlite",
+      "host": "localhost",
+      "port": 5984,
+      "path": "./database_test.sqlite",
+      "name": "customers",
+      "user": "root",
+      "password": null,
+      "pool": {
+        "max": 5,
+        "min": 0,
+        "idle": 10000
+      },
+      "salt": "passSalt",
+      "logging": false
+    },
+    "performance": {
+      "queueCheckInterval": 5, //in seconds
+      "defaultRunPeriod": 15 //in minutes
+    },
+    "limits": {
+      "latest": 100, //in cars
+      "added": 100 //in cars
+    },
+    "interface": {
+      "port": 8080, //port to run the app at
+      "locale": "ru", //moment.js locale for showing dates and stuff
+      "urlMaxLength": 100, //in symbols
+      "runPeriods": [1,5,10,15,20,30,45,60], //интервалы обновления ссылки (в минутах)
+      "session": {
+        "expiration": 24, // The maximum age (in milliseconds) of a valid session (24 hours)
+        "checkExpired": 15, // The interval at which to cleanup expired sessions (15 minutes)
+        "secret": "secret" //session secret key
+      },
+      //колонки БД, которые будут отображаться на интерфейсе
+      "columns": [
+        {
+          "id": "id",
+          "title": "#"
+        },
+        {
+          "id": "markmodel",
+          "title": "Марка/модель"
+        },
+        {
+          "id": "run",
+          "title": "Год/пробег/владельцы"
+        },
+        {
+          "id": "price",
+          "title": "Цена"
+        },
+        {
+          "id": "created",
+          "title": "Добавлено/обновлено"
+        }
+      ]
+    }
+  }
+}

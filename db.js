@@ -1,34 +1,30 @@
 "use strict";
 
-var Sequelize = require("sequelize"),
+var config = require("config").get('config'),
+    Sequelize = require("sequelize"),
     parser = require('./parser.js'),
     sequelize,
-    dbPath = './database_test.sqlite',
     models = {
         car: null,
         link: null
     },
     runningJob = null,
 //check queue every 5 seconds
-    queueCheckInterval = 5,
+    queueCheckInterval = config.performance.queueCheckInterval,
     queueCheckIntervalTimer = null,
-    passSalt = 'H;fd6%idsDbLT#(!^M@F*S)',
+    passSalt = config.db.salt,
 
     /**
      * Connects to the DB (sqlite@localhost)
      * @returns sequelize instance
      */
     connect = function () {
-        sequelize = new Sequelize('autoru', 'root', null, {
-            host: '127.0.0.1',
-            dialect: 'sqlite',
-            pool: {
-                max: 5,
-                min: 0,
-                idle: 10000
-            },
-            storage: dbPath,
-            logging: false
+        sequelize = new Sequelize(config.db.name, config.db.user, config.db.password, {
+            host: config.db.host,
+            dialect: config.db.dialect,
+            pool: config.db.pool,
+            storage: config.db.path,
+            logging: config.db.logging
         });
         return sequelize;
     },
@@ -66,7 +62,7 @@ var Sequelize = require("sequelize"),
             },
             runPeriod: {
                 type: Sequelize.INTEGER,
-                defaultValue: 15
+                defaultValue: config.db.defaultRunPeriod
             },
             nextRun: {
                 type: Sequelize.DATE
@@ -1143,7 +1139,7 @@ var Sequelize = require("sequelize"),
                 },
                 include: [models.image],
                 order: [['created', 'DESC']],
-                limit: 100
+                limit: config.limits.latest
             })
         });
     },
@@ -1166,7 +1162,7 @@ var Sequelize = require("sequelize"),
                 },
                 include: [models.image],
                 order: [['created', 'DESC']],
-                limit: 100
+                limit: config.limits.added
             })
         })
     },

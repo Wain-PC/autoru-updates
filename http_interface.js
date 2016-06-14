@@ -1,5 +1,6 @@
 // load dependencies 
-var express = require('express'),
+var config = require('config').get('config.interface'),
+    express = require('express'),
     cookieParser = require('cookie-parser'),
     bodyParser = require('body-parser'),
     session = require('express-session'),
@@ -13,8 +14,8 @@ var express = require('express'),
             defaultLayout: 'main.hbs',
             helpers: {
                 stripUrl: function (url) {
-                    if (url && url.length > 100) {
-                        return url.substr(0, 100) + '...';
+                    if (url && url.length > config.urlMaxLength) {
+                        return url.substr(0, config.urlMaxLength) + '...';
                     }
                     return url;
                 },
@@ -83,35 +84,14 @@ var express = require('express'),
         })
     },
 
-    carsTableColumns = [
-        {
-            id: 'id',
-            title: '#'
-        },
-        {
-            id: 'markmodel',
-            title: 'Марка/модель'
-        },
-        {
-            id: 'run',
-            title: 'Год/пробег/владельцы'
-        },
-        {
-            id: 'price',
-            title: 'Цена'
-        },
-        {
-            id: 'created',
-            title: 'Добавлено/обновлено'
-        }
-    ];
+    carsTableColumns = config.columns;
 
 // configure express
 var connection = db.startup().then(function (connection) {
     var seqStore = new SequelizeStore({
         db: connection.connection,
-        checkExpirationInterval: 15 * 60 * 1000, // The interval at which to cleanup expired sessions in milliseconds (15 minutes)
-        expiration: 24 * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session (24 hours)
+        checkExpirationInterval: config.session.checkExpired * 60 * 1000, // The interval at which to cleanup expired sessions (15 minutes)
+        expiration: config.session.expiration * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session (24 hours)
     });
     var app = express();
     app.use(express.static('static'));
@@ -119,7 +99,7 @@ var connection = db.startup().then(function (connection) {
     app.use(bodyParser.json());
     app.use(cookieParser());
     app.use(session({
-        secret: 'hey cat',
+        secret: config.session.secret,
         resave: true,
         saveUninitialized: true,
         store: seqStore
@@ -127,7 +107,7 @@ var connection = db.startup().then(function (connection) {
     app.engine('hbs', hbs.engine);
     app.set('view engine', 'hbs');
     seqStore.sync();
-    moment.locale("ru");
+    moment.locale(config.locale);
 //initialize the paths of the application
 
     router.get('/logout', function (req, res) {
@@ -259,7 +239,7 @@ var connection = db.startup().then(function (connection) {
 
             res.render('settings', {
                 link: link,
-                runps: [1,5,10,15,20,30,45,60],
+                runps: config.runPeriods,
                 message: req.session.message
             });
             delete req.session.message;
@@ -274,15 +254,12 @@ var connection = db.startup().then(function (connection) {
         return db.updateLink(req.session.userId, req.params.linkId, runPeriod, sendMail)
             .then(function (response) {
                 if(response.result && response.result == 1) {
-                    console.log("Sucess!");
                     req.session.message = 'Параметры успешно обновлены для ссылки ' + req.params.linkId;
                 }
                 else {
-                    console.log("Error!");
                     req.session.error = 'Ошибка обновления параметров для ссылки ' + req.params.linkId;
                 }
                 req.session.save(function () {
-                    console.log("Sess saved");
                     res.redirect('/link/'+ req.params.linkId +'/settings');
                 });
             });
