@@ -2,42 +2,6 @@
 
 module.exports = (function () {
     var _page, _phantom,
-        totalItems,
-        totalItemsCounter,
-        currentPage,
-        /**
-         * Core method to parse the page. It will do the parsing, then save them to DB.
-         * @param link Link to parse
-         * @param getLink Reference to db.getLink (requiring it here will cause a circular dependency)
-         * @param saveCars Reference to db.saveCars method (for the same reason here as the previous param)
-         * @returns Promise Promise will resolve with the object containing 3 properties (all of them are arrays filled with cars): created, removed, notChanged
-         */
-        process = function (link, getLink, saveCars) {
-            var url = link.link,
-                userId = link.userId;
-            totalItems = {};
-            totalItemsCounter = 0;
-            currentPage = 1;
-            return getLink(userId, url).then(function (link) {
-                return createPage()
-                //parse the cars from URL
-                    .then(function () {
-                        return processPages(url);
-                    })
-                    .catch(function (err) {
-                        console.error("Caught Err:", err);
-                        closePage();
-                    })
-                    .then(function (items) {
-                        return saveCars(items, link);
-                    })
-                    .then(function (savedCars) {
-                        console.log("Parser stats: %s/%s/%s (added/removed/not changed)", savedCars.created.length, savedCars.removed.length, savedCars.notChanged.length);
-                        closePage();
-                        return savedCars;
-                    })
-            })
-        },
 
         /**
          * Creates the PtantomJS page
@@ -56,7 +20,7 @@ module.exports = (function () {
             }
 
             return require('phantom').create()
-                //create new Phantom page
+            //create new Phantom page
                 .then(function (phantom) {
                     _phantom = phantom;
                     return phantom.createPage();
@@ -78,61 +42,13 @@ module.exports = (function () {
             }
         },
 
-    /**
-     */
-
-        /**
-         * Processes all the pages for the current filter - one by one
-         * @description
-         * Step 1. Simulate scrolling to bottom of the page before pressing the next button (some logs are being sent while scrolling)
-         * Step 2. Press Next page button (document.querySelector'.pager__next')) then wait ~1 sec while the info is being loaded
-         * Step 3. Parse the info (using parsePage method)
-         * Step 4. Repeat (check for stopping before that: Next page button should have a class of 'button_disabled')
-         * Step 5. Analyze the info, save results to DB, send notifications, etc.
-         * @param url Filter URL
-         * @returns Promise Promise will resolve with the array of cars found on all pages
-         */
-        processPages = function (url) {
-            return _page.open(url)
-                .then(parsePage)
-                .then(function (output) {
-                    console.log("Page found %s items", output.cars.length);
-                    output.cars.forEach(function (item) {
-                        if (!totalItems[item.id]) {
-                            totalItemsCounter++;
-                        }
-                        totalItems[item.id] = item;
-                    });
-                    return output.pager;
-                })
-                .then(function (pager) {
-                    if (pager && pager.current < pager.max) {
-                        //wait 1 sec before opening the next page
-                        //opening the pages too quickly can result in a BAN. We don't want a ban really
-                        return promiseTimeout(1000).then(function () {
-                            return processPages(createUrl(url, pager.current + 1));
-                        });
-                    }
-                    console.log("Parser found %s cars", totalItemsCounter);
-                    return totalItems;
-                });
-        },
-
         processPage = function (url, pageNum) {
             if (!pageNum) {
                 pageNum = 1;
             }
             url = createUrl(url, pageNum);
             return _page.open(url)
-                .then(parsePage)
-                .then(function (output) {
-                    var carsIds = Object.keys(output.cars);
-                    console.log("Page found %s items", carsIds.length);
-                    //this is a hack. Old cars are being shown
-                    return promiseTimeout(2000).then(function () {
-                        return output;
-                    });
-                });
+                .then(parsePage);
         },
 
         /**
@@ -149,7 +65,7 @@ module.exports = (function () {
         },
 
         /**
-         * Parses a single page and returns an array of found cars
+         * Parses a single page and returns an array of found cars (or false when it assumes the page is not a valid one)
          * @returns {Array}
          */
         parsePage = function () {
@@ -183,26 +99,11 @@ module.exports = (function () {
                         }
 
                         item = JSON.parse(item.dataset.bem);
-                        item = item['stat']['statParams'];
-                        id = parseInt(item['card_id'], 10);
+                        id = parseInt(item['stat']['id'], 10);
                         output.cars[id] = {
                             id: id,
                             url: itemUrl,
-                            images: itemImages,
-                            created: new Date(item['card_date_created']),
-                            updated: new Date(item['card_date_updated']),
-                            mark: item['card_mark'],
-                            model: item['card_model'],
-                            generation: item['card_generation'],
-                            gearbox: item['card_gearbox'],
-                            year: item['card_year'],
-                            owners: item['card_owners_count'],
-                            price: item['card_price'],
-                            run: item['card_run'],
-                            condition: item['card_state'],
-                            vin: item['card_vin'] === 'true',
-                            checked: item['card_checked'] === 'true',
-                            userId: parseInt(item['card_owner_uid'], 10)
+                            images: itemImages
                         };
                     }
                 }
@@ -211,6 +112,10 @@ module.exports = (function () {
                 var pager = document.querySelector('.pager');
                 if (pager && pager.dataset.bem) {
                     output.pager = JSON.parse(pager.dataset.bem).pager;
+                }
+                else {
+                    //return empty cars object and no pager
+                    return false;
                 }
                 return output;
             });
@@ -228,7 +133,6 @@ module.exports = (function () {
         };
 
     return {
-        process: process,
         processPage: processPage,
         createPage: createPage,
         closePage: closePage

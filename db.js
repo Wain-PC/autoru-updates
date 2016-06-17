@@ -45,13 +45,15 @@ var config = require("config").get('config'),
             password: {
                 type: Sequelize.STRING(200)
             },
-
             authKey: {
                 type: Sequelize.STRING(200)
             },
-            demo: {
-                type: Sequelize.BOOLEAN,
-                defaultValue: false
+            status: {
+                type: Sequelize.INTEGER,
+                defaultValue: 0
+            },
+            telegramChatId: {
+                type: Sequelize.STRING(100)
             }
         });
 
@@ -62,7 +64,7 @@ var config = require("config").get('config'),
             },
             runPeriod: {
                 type: Sequelize.INTEGER,
-                defaultValue: config.db.defaultRunPeriod
+                defaultValue: config.performance.defaultRunPeriod
             },
             nextRun: {
                 type: Sequelize.DATE
@@ -117,18 +119,6 @@ var config = require("config").get('config'),
                 type: Sequelize.STRING(1000)
             },
 
-            created: {
-                type: Sequelize.DATE
-            },
-
-            updated: {
-                type: Sequelize.DATE
-            },
-
-            watched: {
-                type: Sequelize.DATE,
-                defaultValue: Sequelize.NOW
-            },
 
             mark: {
                 type: Sequelize.STRING
@@ -138,19 +128,11 @@ var config = require("config").get('config'),
                 type: Sequelize.STRING
             },
 
-            generation: {
-                type: Sequelize.STRING
-            },
-
-            gearbox: {
-                type: Sequelize.STRING
+            description: {
+                type: Sequelize.STRING(200)
             },
 
             year: {
-                type: Sequelize.INTEGER
-            },
-
-            owners: {
                 type: Sequelize.INTEGER
             },
 
@@ -162,20 +144,11 @@ var config = require("config").get('config'),
                 type: Sequelize.INTEGER
             },
 
-            condition: {
-                type: Sequelize.INTEGER
+            city: {
+                type: Sequelize.STRING(100)
             },
 
-            autoruUserId: {
-                type: Sequelize.INTEGER,
-                field: 'user_id'
-            },
-
-            vin: {
-                type: Sequelize.BOOLEAN
-            },
-
-            checked: {
+            autoCodeChecked: {
                 type: Sequelize.BOOLEAN
             },
 
@@ -370,17 +343,17 @@ var config = require("config").get('config'),
         return getUserById(userId).then(function (user) {
             //TODO: add check whether a user can create new link or not (linkLimit, demoMode or something)
             return models.link.findOrCreate({
-                    where: {
-                        link: url,
-                        userId: user.id
-                    },
-                    defaults: {
-                        link: url,
-                        userId: user.id,
-                        nextRun: new Date(),
-                        sendMail: !!sendMail
-                    }
-                })
+                where: {
+                    link: url,
+                    userId: user.id
+                },
+                defaults: {
+                    link: url,
+                    userId: user.id,
+                    nextRun: new Date(),
+                    sendMail: !!sendMail
+                }
+            })
                 .then(function (links) {
                     return links[0];
                 });
@@ -657,23 +630,23 @@ var config = require("config").get('config'),
                 limit: 1
             }]
         }).then(function (link) {
-                if (!link) {
-                    return promiseError('LINK_NOT_FOUND');
-                }
-                var maxSequenceId = link.sequences[0];
-                if (!maxSequenceId) {
-                    return [];
-                }
-                return models.car.findAll({
-                    where: {
-                        linkId: link.id,
-                        sequenceLastChecked: {
-                            $lt: maxSequenceId.orderId
-                        }
-                    },
-                    include: [models.image]
-                });
-            })
+            if (!link) {
+                return promiseError('LINK_NOT_FOUND');
+            }
+            var maxSequenceId = link.sequences[0];
+            if (!maxSequenceId) {
+                return [];
+            }
+            return models.car.findAll({
+                where: {
+                    linkId: link.id,
+                    sequenceLastChecked: {
+                        $lt: maxSequenceId.orderId
+                    }
+                },
+                include: [models.image]
+            });
+        })
             .then(function (cars) {
                 return cars;
             })
@@ -693,21 +666,21 @@ var config = require("config").get('config'),
                 }
             }]
         }).then(function (link) {
-                if (!link) {
-                    return promiseError('LINK_NOT_FOUND');
-                }
-                var sequence = link.sequences[0];
-                if (!sequence) {
-                    return [];
-                }
-                return models.car.findAll({
-                    where: {
-                        linkId: link.id,
-                        sequenceCreated: sequenceOrderId
-                    },
-                    include: [models.image]
-                });
-            })
+            if (!link) {
+                return promiseError('LINK_NOT_FOUND');
+            }
+            var sequence = link.sequences[0];
+            if (!sequence) {
+                return [];
+            }
+            return models.car.findAll({
+                where: {
+                    linkId: link.id,
+                    sequenceCreated: sequenceOrderId
+                },
+                include: [models.image]
+            });
+        })
             .then(function (cars) {
                 return cars;
             })
@@ -730,26 +703,26 @@ var config = require("config").get('config'),
                 }
             }]
         }).then(function (link) {
-                var sequence, prevSequenceOrderId;
-                if (!link) {
-                    return promiseError('LINK_NOT_FOUND');
-                }
-                sequence = link.sequences[0];
-                if (!sequence) {
-                    return [];
-                }
-                prevSequenceOrderId = parseInt(sequenceOrderId) - 1;
-                if (prevSequenceOrderId < 0) {
-                    return [];
-                }
-                return models.car.findAll({
-                    where: {
-                        linkId: link.id,
-                        sequenceLastChecked: prevSequenceOrderId
-                    },
-                    include: [models.image]
-                });
-            })
+            var sequence, prevSequenceOrderId;
+            if (!link) {
+                return promiseError('LINK_NOT_FOUND');
+            }
+            sequence = link.sequences[0];
+            if (!sequence) {
+                return [];
+            }
+            prevSequenceOrderId = parseInt(sequenceOrderId) - 1;
+            if (prevSequenceOrderId < 0) {
+                return [];
+            }
+            return models.car.findAll({
+                where: {
+                    linkId: link.id,
+                    sequenceLastChecked: prevSequenceOrderId
+                },
+                include: [models.image]
+            });
+        })
             .then(function (cars) {
                 return cars;
             })
@@ -792,7 +765,7 @@ var config = require("config").get('config'),
                     linkId: linkId
                 }
             })
-            //after that, we should find the cars updated and remove it from the DB
+        //after that, we should find the cars updated and remove it from the DB
             .then(function () {
                 return models.car.findAll({
                     where: {
@@ -905,7 +878,7 @@ var config = require("config").get('config'),
                     linkId: linkId
                 }
             })
-            //after that, we should find the cars updated and remove it from the DB
+        //after that, we should find the cars updated and remove it from the DB
             .then(function () {
                 return models.car.findAll({
                     where: {
@@ -974,12 +947,12 @@ var config = require("config").get('config'),
                     //let's assume the execution takes 30 sec.
                     var nowTime = new Date().getTime(), promisesArray = [];
                     console.log("Found %s links on startup:", links.length);
-                    /*links.forEach(function (link, index) {
-                     if (!link) return;
-                     link.nextRun = new Date(nowTime + index * 1000 * queueCheckInterval);
-                     promisesArray.push(link.save());
-                     });
-                     return Promise.all(promisesArray);*/
+                    links.forEach(function (link, index) {
+                        if (!link) return;
+                        link.nextRun = new Date(nowTime + index * 1000 * queueCheckInterval);
+                        promisesArray.push(link.save());
+                    });
+                    return Promise.all(promisesArray);
                 })
                 .then(function () {
                     queueCheckIntervalTimer = setInterval(checkQueue, 1000 * queueCheckInterval);
@@ -1032,30 +1005,6 @@ var config = require("config").get('config'),
         });
     },
 
-    /**
-     * Executes the queue link (starts up the parser, then calculates next run date after the parser has completed the job)
-     * @param link Link instance
-     */
-    executeQueueItem = function (link) {
-        if (!link || !link.id) {
-            return false;
-        }
-        if (!runningJob) {
-            runningJob = link.id;
-            return parser.process(link, getLinkAndCreateSequence, saveCars)
-                .then(function () {
-                    //update nextRun of the link
-                    var nowTime = new Date().getTime();
-                    link.nextRun = new Date(nowTime + link.runPeriod * 60000);
-                    return link.save().then(function () {
-                        runningJob = false;
-                        return checkQueue();
-                    })
-                });
-        }
-        //console.log("Task is still running, prevent link run");
-    },
-
     crawlPage = function (link, pageNum, totalCars) {
         var maxPage, carsCount;
         if (!pageNum) {
@@ -1067,21 +1016,25 @@ var config = require("config").get('config'),
         console.log("Crawling page %s (%s found previously)", pageNum, totalCars);
         return parser.processPage(link.link, pageNum)
             .then(function (output) {
+                console.log("OUT:", JSON.stringify(output));
                 maxPage = output.pager && output.pager.max;
                 carsCount = Object.keys(output.cars).length;
                 return saveCarsFast(output.cars, link);
             })
             .then(function (newCarsCount) {
                 totalCars += newCarsCount;
-                console.log("MaxPage: %s PageNum: %s NewCars: %s", maxPage, pageNum, newCarsCount);
+                console.log("MaxPage: %s PageNum: %s PageCars: %s NewCars: %s", maxPage, pageNum, carsCount, newCarsCount);
                 //beware of the MAGIC constant. It's the number of cars on one page
                 if (newCarsCount === 37) {
+                    console.log("Move to next page");
                     return crawlPage(link, ++pageNum, totalCars);
                 }
                 //repeat if that's NOT the last page, 0 is probably an error
                 else if (maxPage && carsCount === 0 && pageNum < maxPage) {
+                    console.log("Repeat the page, probably an error");
                     return crawlPage(link, pageNum, totalCars);
                 }
+                console.log("All done, new cars found:", totalCars);
                 return totalCars;
             });
     },
@@ -1102,19 +1055,27 @@ var config = require("config").get('config'),
                     return crawlPage(link);
                 })
                 .then(function (newCarsCounter) {
+                    console.log("Update sequence now!");
                     return updateSequence(link.id, link.currentSequence, newCarsCounter);
                 })
 
                 .then(function () {
                     //update nextRun of the link
                     var nowTime = new Date().getTime();
+
+                    if (!link.runPeriod) {
+                        link.runPeriod = config.performance.defaultRunPeriod;
+                    }
+
                     link.nextRun = new Date(nowTime + link.runPeriod * 60000);
+
+                    console.log("NextRun assigned to %s", link.runPeriod, link.nextRun);
                     return link.save().then(function () {
                         runningJob = false;
                         return checkQueue();
                     })
-                });
-            //.then(parser.closePage);
+                })
+                .then(parser.closePage);
         }
     },
 
