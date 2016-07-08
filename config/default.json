@@ -5,7 +5,7 @@
       "dialect": "sqlite",
       "host": "localhost",
       "port": 5984,
-      "path": "./database_test.sqlite",
+      "path": "./db.sqlite",
       "name": "customers",
       "user": "root",
       "password": null,
@@ -58,6 +58,9 @@
           "title": "Добавлено/обновлено"
         }
       ]
+    },
+    "telegram": {
+      "token": "your_token"
     }
   }
 }

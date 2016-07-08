@@ -29,17 +29,20 @@ var config = require('config').get('config.interface'),
                     return options.inverse(this);
                 },
                 latest: function (array, param) {
-                    return array[array.length-1][param];
+                    return array[array.length - 1][param];
                 },
                 money: function (string) {
+                    if (!string) {
+                        return '';
+                    }
                     string = string.toString().split('').reverse();
                     string = string.reduce(function (arr, item, index) {
-                        if(index && index%3 === 0) {
+                        if (index && index % 3 === 0) {
                             arr.push(' ');
                         }
                         arr.push(item);
                         return arr
-                    },[]);
+                    }, []);
                     return string.reverse().join('');
                 }
             }
@@ -64,7 +67,7 @@ var config = require('config').get('config.interface'),
         }
 
         if (!order) {
-            order = 'created';
+            order = 'createdAt';
         }
         if (!direction) {
             direction = -1;
@@ -253,14 +256,14 @@ var connection = db.startup().then(function (connection) {
 
         return db.updateLink(req.session.userId, req.params.linkId, runPeriod, sendMail)
             .then(function (response) {
-                if(response.result && response.result == 1) {
+                if (response.result && response.result == 1) {
                     req.session.message = 'Параметры успешно обновлены для ссылки ' + req.params.linkId;
                 }
                 else {
                     req.session.error = 'Ошибка обновления параметров для ссылки ' + req.params.linkId;
                 }
                 req.session.save(function () {
-                    res.redirect('/link/'+ req.params.linkId +'/settings');
+                    res.redirect('/link/' + req.params.linkId + '/settings');
                 });
             });
     });
@@ -306,7 +309,7 @@ var connection = db.startup().then(function (connection) {
 
     router.get('/link/:linkId/sendmail', function (req, res, next) {
         db.sendMailToLink(req.session.userId, req.params.linkId, !!req.params.sendmail).then(function (result) {
-            if(req.params.sendmail) {
+            if (req.params.sendmail) {
                 req.session.message = 'Уведомления <b>включены</b> для ссылки ' + req.params.linkId;
             }
             else {
@@ -362,12 +365,35 @@ var connection = db.startup().then(function (connection) {
         });
     });
 
-    router.use(function(req, res){
+    router.get('/settings', function (req, res) {
+        db.getUserById(req.session.userId).then(function (user) {
+            res.render('usersettings', {
+                user: user,
+                message: req.session.message
+            });
+            delete req.session.message;
+        });
+    });
+
+    router.get('/settings/removetelegram', function (req, res) {
+        return db.removeUserTelegramChat(req.session.userId).then(function () {
+            req.session.message = 'Чат Telegram успешно удален';
+        }, function () {
+            req.session.message = 'Произошла ошибка при удалении чата Telegram';
+        })
+            .then(function () {
+                req.session.save(function () {
+                    res.redirect('/settings');
+                });
+            });
+    });
+
+    router.use(function (req, res) {
         res.status(404);
         res.render('404');
     });
 
-    app.use(function(err, req, res, next) {
+    app.use(function (err, req, res, next) {
         console.error(err.stack);
         res.status(500);
         res.render('error');

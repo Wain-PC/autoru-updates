@@ -2,6 +2,8 @@
 
 module.exports = (function () {
     var _page, _phantom,
+        remotePageLoadResolve,
+        remotePageLoadReject,
 
         /**
          * Creates the PtantomJS page
@@ -14,6 +16,21 @@ module.exports = (function () {
                 else {
                     return phantom.createPage()
                         .then(function (page) {
+                            //register onLoadFinished handler
+                            console.log("OnLoadFinished listener registered");
+                            page.on('onLoadFinished', function (status) {
+                                console.log("obLoadFinished handler:"+status);
+                                if(status === 'success') {
+                                    return parsePage()
+                                        .then((result)=>{
+                                            return remotePageLoadResolve(result);
+                                        }, function (err) {
+                                            return remotePageLoadReject(err);
+                                        });
+                                }
+                                return remotePageLoadReject(status);
+                            });
+
                             return _page = page;
                         });
                 }
@@ -26,6 +43,18 @@ module.exports = (function () {
                     return phantom.createPage();
                 })
                 .then(function (page) {
+                    page.on('onLoadFinished', function (status) {
+                        console.log("obLoadFinished handler:"+status);
+                        if(status === 'success') {
+                            return parsePage()
+                                .then((result)=>{
+                                    return remotePageLoadResolve(result);
+                                }, function (err) {
+                                    return remotePageLoadReject(err);
+                                });
+                        }
+                        return remotePageLoadReject(status);
+                    });
                     return _page = page;
                 })
         },
@@ -47,8 +76,18 @@ module.exports = (function () {
                 pageNum = 1;
             }
             url = createUrl(url, pageNum);
+            console.log(url);
             return _page.open(url)
-                .then(parsePage);
+                .then(function (status) {
+                    console.log("Page open handler:"+status);
+                    if(status === 'success') {
+                        return new Promise((resolve, reject)=>{
+                            remotePageLoadResolve = resolve;
+                            remotePageLoadReject = reject;
+                        });
+                    }
+                    return Promise.reject();
+                })
         },
 
         /**
@@ -69,7 +108,9 @@ module.exports = (function () {
          * @returns {Array}
          */
         parsePage = function () {
+            console.log("Page parser started, evaluating script");
             return _page.evaluate(function () {
+                console.log("Hello from the inside!");
                 var list = document.querySelectorAll('tbody.listing-item'),
                     i, length, item, itemUrl, itemImages, id,
                     output = {
@@ -98,13 +139,71 @@ module.exports = (function () {
                             }, []);
                         }
 
-                        item = JSON.parse(item.dataset.bem);
-                        id = parseInt(item['stat']['id'], 10);
+                        id = parseInt(JSON.parse(item.dataset.bem)['stat']['id'], 10); //such bad code, wow
                         output.cars[id] = {
                             id: id,
                             url: itemUrl,
                             images: itemImages
                         };
+
+                        //this is the tricky part. Since Yandex devs disabled the pretty JSON in their output,
+                        //we'll have to parse the page itself. This is the hacky way, but it'll do for now.
+                        var props = [
+                            {
+                                orig: 'name',
+                                out: 'mark'
+                            },
+                            {
+                                orig: 'description',
+                                out: 'description'
+                            },
+                            {
+                                orig: 'price',
+                                out: 'price'
+                            }
+                            ,
+                            {
+                                orig: 'year',
+                                out: 'year'
+                            },
+                            {
+                                orig: 'km',
+                                out: 'run'
+                            },
+                            {
+                                orig: 'autocode',
+                                out: 'model'
+                            }
+                        ];
+                        props.forEach(function (obj, index) {
+                            console.log(obj);
+                            var query = item.querySelector(".listing-item__" + obj.orig);
+                            console.log(query);
+                            if (query) {
+                                output.cars[id][obj.out] = query.innerText || null;
+                            }
+                            else {
+                                output.cars[id][obj.out] = null;
+                            }
+                        });
+
+                        //strip autocode from name
+                        if (output.cars[id].mark && output.cars[id].model) {
+                            output.cars[id].mark = output.cars[id].mark.split(output.cars[id].km)[0];
+                        }
+
+                        //make a number out of the price
+                        //Step 1. Remove spaces
+                        //Step 2. Parse to Integer
+                        if (output.cars[id].price) {
+                            output.cars[id].price = parseInt(output.cars[id].price.replace(/ /g, ''));
+                        }
+                        //the same applies to 'run' property
+                        if (output.cars[id].run) {
+                            output.cars[id].run = parseInt(output.cars[id].run.replace(/ /g, ''));
+                        }
+
+                        console.log(id, output.cars[id]);
                     }
                 }
 

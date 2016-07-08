@@ -325,6 +325,116 @@ var config = require("config").get('config'),
     },
 
     /**
+     * Gets the user data by authKey
+     * @param chatId String authentication key for the API usage
+     * @returns Promise.<User> User data (full)
+     */
+    getUserByTelegramChatId = function (chatId) {
+        if (!chatId) {
+            return promiseError('NO_CHATID');
+        }
+        return models.user.findOne({
+            where: {
+                telegramChatId: chatId
+            }
+        }).then(function (user) {
+            if (user) {
+                return user.get();
+            }
+            return promiseError('USER_NOT_FOUND');
+        });
+    },
+
+    /**
+     * Saves telegram chat ID for the user
+     * @param userId User ID
+     * @param telegramChatId Telegram Chat ID
+     * @param telegramUserId Telegram User ID
+     * @returns Promise.<Boolean> True if chatId has been added sucessfully, false otherwise
+     */
+    addUserTelegramChat = function (userId, telegramChatId, telegramUserId) {
+        var _user;
+        //user ID cannot be zero(0), so it's a perfectly valid check
+        if (!userId) {
+            return promiseError('NO_USERID');
+        }
+        if (!telegramChatId) {
+            return promiseError('NO_TELEGRAM_CHAT_ID');
+        }
+        return models.user.findOne({
+            where: {
+                id: userId
+            }
+        }).then(function (user) {
+            if (user) {
+                if (user.telegramChatId) {
+                    return promiseError('TELEGRAM_CHAT_ALREADY_STARTED');
+                }
+                _user = user;
+                return checkDuplicateTelegramAccounts(telegramUserId);
+            }
+            return promiseError('USER_NOT_FOUND');
+        })
+            .then(function (duplicateCheckResult) {
+                if (duplicateCheckResult) {
+                    return promiseError("MULTIPLE_ACCOUNTS_CHAT");
+                }
+                _user.telegramChatId = telegramChatId;
+                return _user.save();
+            })
+            .then(function (user) {
+                return !!(user && user.telegramChatId) || promiseError("ERR_ADDING_TELEGRAM_CHAT");
+            });
+    },
+
+    /**
+     * Checks for the same user trying to get notifications from many accounts. Such user must be banned.
+     * @param telegramUserId Telegram User ID
+     * @returns Promise.<Boolean> True if duplicate user detected, false otherwise
+     */
+    checkDuplicateTelegramAccounts = function (telegramUserId) {
+        if (!telegramUserId) {
+            return promiseError('TELEGRAM_USERID_NOT_PROVIDED');
+        }
+        return models.user.findOne({
+            where: {
+                telegramChatId: telegramUserId
+            }
+        })
+            .then(function (user) {
+                return !!user;
+            })
+    },
+
+    /**
+     * Removes telegram chat ID for the user
+     * @param userId User ID
+     * @returns Promise.<Boolean> True if chatId has been removed sucessfully, false otherwise
+     */
+    removeUserTelegramChat = function (userId) {
+        if (userId === undefined) {
+            return promiseError('NO_USERID');
+        }
+        return models.user.findOne({
+            where: {
+                id: userId
+            }
+        }).then(function (user) {
+            if (user) {
+                if (!user.telegramChatId) {
+                    return promiseError("TELEGRAM_CHAT_NOT_FOUND");
+                }
+                user.telegramChatId = null;
+                return user.save();
+            }
+            return promiseError('USER_NOT_FOUND');
+        })
+            .then(function (user) {
+                return !!(user && !user.telegramChatId) || promiseError("ERR_DELETING_TELEGRAM_CHAT");
+            });
+    },
+
+    /**
      * Creates a new filter link for the user (or returns an existing one, if the user already has one with the same URL)
      * @param userId ID of the user
      * @param url String URL of the link to create
@@ -1080,7 +1190,7 @@ var config = require("config").get('config'),
     },
 
 
-    getLatestAddedCarsForAllLinks = function (userId) {
+    getLatestAddedCarsForAllLinks = function (userId, limit) {
         //Step 1. Get all links for the user
         //Step 2. Get ID's of this links.
         //Step 3. Search for cars with this linkID's, order by 'created' or 'createdAt'
@@ -1099,8 +1209,8 @@ var config = require("config").get('config'),
                     }
                 },
                 include: [models.image],
-                order: [['created', 'DESC']],
-                limit: config.limits.latest
+                order: [['createdAt', 'DESC']],
+                limit: limit || config.limits.latest
             })
         });
     },
@@ -1122,7 +1232,7 @@ var config = require("config").get('config'),
                     linkId: link.id
                 },
                 include: [models.image],
-                order: [['created', 'DESC']],
+                order: [['createdAt', 'DESC']],
                 limit: config.limits.added
             })
         })
@@ -1191,14 +1301,18 @@ module.exports = {
     checkQueue: checkQueue,
     startQueue: startQueue,
     stopQueue: stopQueue,
-    createUser: createUser,
-    authenticateUser: authenticateUser,
-    getUserByAuthKey: getUserByAuthKey,
     getCarById: getCarById,
     getLinkCars: getLinkCars,
     getLinkCarsRemoved: getLinkCarsRemoved,
     getAddedCarsForSequence: getAddedCarsForSequence,
     getRemovedCarsForSequence: getRemovedCarsForSequence,
     getLatestAddedCarsForAllLinks: getLatestAddedCarsForAllLinks,
-    getLatestAddedCarsForLink: getLatestAddedCarsForLink
+    getLatestAddedCarsForLink: getLatestAddedCarsForLink,
+    createUser: createUser,
+    authenticateUser: authenticateUser,
+    getUserById: getUserById,
+    getUserByAuthKey: getUserByAuthKey,
+    getUserByTelegramChatId: getUserByTelegramChatId,
+    addUserTelegramChat: addUserTelegramChat,
+    removeUserTelegramChat: removeUserTelegramChat
 };
