@@ -87,14 +87,6 @@ var config = require("config").get('config'),
             carsAdded: {
                 type: Sequelize.INTEGER,
                 defaultValue: 0
-            },
-            carsRemoved: {
-                type: Sequelize.INTEGER,
-                defaultValue: 0
-            },
-            carsNotChanged: {
-                type: Sequelize.INTEGER,
-                defaultValue: 0
             }
         });
 
@@ -597,15 +589,11 @@ var config = require("config").get('config'),
      * @param linkId ID of the link
      * @param orderId ID of the sequence
      * @param carsAdded Number of cars added to the link during this sequence
-     * @param carsRemoved  Number of cars removed from the link during this sequence
-     * @param carsNotChanged  Number of cars that didn't change during this sequence
      * @returns Promise.<Sequence> Promise will resolve with the sequence data (full)
      */
-    updateSequence = function (linkId, orderId, carsAdded, carsRemoved, carsNotChanged) {
+    updateSequence = function (linkId, orderId, carsAdded) {
         return models.sequence.update({
-            carsAdded: +carsAdded || 0,
-            carsRemoved: +carsRemoved || 0,
-            carsNotChanged: +carsNotChanged || 0
+            carsAdded: +carsAdded || 0
         }, {
             where: {
                 linkId: linkId,
@@ -684,39 +672,6 @@ var config = require("config").get('config'),
         });
     },
 
-    getLinkCarsRemoved = function (userId, linkId) {
-        return models.link.findOne({
-            where: {
-                id: linkId,
-                userId: userId
-            },
-            include: [{
-                model: models.sequence,
-                order: 'orderId DESC',
-                limit: 1
-            }]
-        }).then(function (link) {
-            if (!link) {
-                return promiseError('LINK_NOT_FOUND');
-            }
-            var maxSequenceId = link.sequences[0];
-            if (!maxSequenceId) {
-                return [];
-            }
-            return models.car.findAll({
-                where: {
-                    linkId: link.id,
-                    sequenceLastChecked: {
-                        $lt: maxSequenceId.orderId
-                    }
-                },
-                include: [models.image]
-            });
-        })
-            .then(function (cars) {
-                return cars;
-            })
-    },
 
 
     getAddedCarsForSequence = function (userId, linkId, sequenceOrderId) {
@@ -753,60 +708,15 @@ var config = require("config").get('config'),
     },
 
 
-    getRemovedCarsForSequence = function (userId, linkId, sequenceOrderId) {
-        /*
-         TODO: add userId check
-         */
-        return models.link.findOne({
-            where: {
-                id: linkId,
-                userId: userId
-            },
-            include: [{
-                model: models.sequence,
-                where: {
-                    orderId: sequenceOrderId
-                }
-            }]
-        }).then(function (link) {
-            var sequence, prevSequenceOrderId;
-            if (!link) {
-                return promiseError('LINK_NOT_FOUND');
-            }
-            sequence = link.sequences[0];
-            if (!sequence) {
-                return [];
-            }
-            prevSequenceOrderId = parseInt(sequenceOrderId) - 1;
-            if (prevSequenceOrderId < 0) {
-                return [];
-            }
-            return models.car.findAll({
-                where: {
-                    linkId: link.id,
-                    sequenceLastChecked: prevSequenceOrderId
-                },
-                include: [models.image]
-            });
-        })
-            .then(function (cars) {
-                return cars;
-            })
-    },
-
     /**
      * This will save the array of the found cars in the DB
      * @param cars Array of the found cars during the parsing sequence
      * @param link Link instance
-     * @returns Promise.<{created: [], removed: [], notChanged: []}>  Promise will resolve with the object with 3 arrays for the created, removed, not changed cars accordingly.
+     * @returns Promise.<{Array>  Promise will resolve with the array of created cars.
      */
     saveCars = function (cars, link) {
         var carId, car,
-            linkId, outObj = {
-                created: [],
-                removed: [],
-                notChanged: []
-            },
+            linkId, outObj = [],
             carsArray = [],
             ids = [],
             images = [];
@@ -883,25 +793,16 @@ var config = require("config").get('config'),
                     }
                 }).then(function (cars) {
                     var i, length;
-                    //sort by new ones and removed ones
                     length = cars.length;
                     for (i = 0; i < length; i++) {
 
                         //that means the car has been added during the last sequence (it's new)
                         if (link.currentSequence === cars[i].sequenceCreated) {
-                            outObj.created.push(cars[i].get());
-                        }
-                        //that means the car has been deleted, as it hasn't been checked by the current sequence (but checked by the previous one)
-                        else if (cars[i].sequenceLastChecked === link.currentSequence - 1) {
-                            outObj.removed.push(cars[i].get());
-                        }
-
-                        else if (cars[i].sequenceLastChecked === link.currentSequence) {
-                            outObj.notChanged.push(cars[i].get());
+                            outObj.push(cars[i].get());
                         }
                     }
                     //save stats to the sequence
-                    return updateSequence(link.id, link.currentSequence, outObj.created.length, outObj.removed.length, outObj.notChanged.length)
+                    return updateSequence(link.id, link.currentSequence, outObj.length)
                         .then(function () {
                             return outObj;
                         });
@@ -1259,9 +1160,7 @@ module.exports = {
     stopQueue,
     getCarById,
     getLinkCars,
-    getLinkCarsRemoved,
     getAddedCarsForSequence,
-    getRemovedCarsForSequence,
     getLatestAddedCarsForAllLinks,
     getLatestAddedCarsForLink,
     createUser,

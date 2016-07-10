@@ -5,8 +5,6 @@
     <tr>
         <th>Дата обновления</th>
         <th>Добавлено</th>
-        <th>Удалено</th>
-        <th>Не изменилось</th>
     </tr>
     </thead>
     <tbody>
@@ -22,17 +20,6 @@
                 {{else}}
                     {{this.carsAdded}}
                 {{/if}}
-            </td>
-            <td>
-                {{#if this.carsRemoved}}
-                    <a class="btn btn-warning"
-                       href="/link/{{this.linkId}}/sequence/{{this.orderId}}/removed">{{this.carsRemoved}}</a>
-                {{else}}
-                    {{this.carsRemoved}}
-                {{/if}}
-            </td>
-            <td>
-                <a class="btn btn-default" href="/link/{{this.linkId}}/cars">{{this.carsNotChanged}}</a>
             </td>
         </tr>
     {{/each}}

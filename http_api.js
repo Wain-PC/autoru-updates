@@ -101,11 +101,6 @@ router.post('/link/:linkId/cars', function (req, res, next) {
     next();
 });
 
-router.post('/link/:linkId/carsremoved', function (req, res, next) {
-    res.locals.response = db.getLinkCarsRemoved(res.locals.user.id, req.params.linkId);
-    next();
-});
-
 router.post('/link/:linkId/update', function (req, res, next) {
     res.locals.response = db.runLinkById(res.locals.user.id, req.params.linkId);
     next();
@@ -128,11 +123,6 @@ router.post('/link/:linkId/sequence', function (req, res, next) {
 
 router.post('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
     res.locals.response = db.getAddedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
-    next();
-});
-
-router.post('/link/:linkId/sequence/:sequenceId/removed', function (req, res, next) {
-    res.locals.response = db.getRemovedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
     next();
 });
 

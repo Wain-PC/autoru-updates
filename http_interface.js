@@ -321,15 +321,6 @@ var connection = db.startup().then(function (connection) {
         });
     });
 
-    router.get('/link/:linkId/carsremoved', function (req, res, next) {
-        db.getLinkCarsRemoved(req.session.userId, req.params.linkId, req.query.order, req.query.direction).then(function (cars) {
-            res.render('cars', {
-                columns: carsTableColumns,
-                cars: carSorter(req, cars)
-            });
-        });
-    });
-
     router.get('/link/:linkId/sequence', function (req, res, next) {
         db.getLinkSequences(req.session.userId, req.params.linkId).then(function (sequences) {
             res.render('sequences', {
@@ -340,15 +331,6 @@ var connection = db.startup().then(function (connection) {
 
     router.get('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
         db.getAddedCarsForSequence(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
-            res.render('cars', {
-                columns: carsTableColumns,
-                cars: carSorter(req, cars)
-            });
-        });
-    });
-
-    router.get('/link/:linkId/sequence/:sequenceId/removed', function (req, res, next) {
-        db.getRemovedCarsForSequence(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
                 cars: carSorter(req, cars)
