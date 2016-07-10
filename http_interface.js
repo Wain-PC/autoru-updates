@@ -96,7 +96,12 @@ var connection = db.startup().then(function (connection) {
         checkExpirationInterval: config.session.checkExpired * 60 * 1000, // The interval at which to cleanup expired sessions (15 minutes)
         expiration: config.session.expiration * 60 * 60 * 1000  // The maximum age (in milliseconds) of a valid session (24 hours)
     });
-    var app = express();
+    var app = express(),
+        errorHandler = function (err, req, res, next) {
+            console.error(err.stack);
+            res.status(500);
+            res.render('error');
+        };
     app.use(express.static('static'));
     app.use(bodyParser.urlencoded({extended: true}));
     app.use(bodyParser.json());
@@ -375,11 +380,9 @@ var connection = db.startup().then(function (connection) {
         res.render('404');
     });
 
-    app.use(function (err, req, res, next) {
-        console.error(err.stack);
-        res.status(500);
-        res.render('error');
-    });
+
+    router.use(errorHandler);
+    app.use(errorHandler);
 
 
 //initialize the app
