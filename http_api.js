@@ -18,8 +18,9 @@ app.use(bodyParser.json());
 
 //Add a simple middleware function to check auth state
 function checkAuthByKey(req, res, next) {
-    var authKey = req.body.authkey;
-    return db.getUserByAuthKey(authKey)
+    return db.getUserBy({
+        authKey: req.body.authkey
+    })
         .then(function (user) {
             //do stuff
             res.locals.user = user;

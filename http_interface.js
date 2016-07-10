@@ -366,7 +366,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/settings', function (req, res) {
-        db.getUserById(req.session.userId).then(function (user) {
+        db.getUserBy({id: req.session.userId}).then(function (user) {
             res.render('usersettings', {
                 user: user,
                 message: req.session.message

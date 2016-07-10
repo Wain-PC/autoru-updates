@@ -286,57 +286,13 @@ var config = require("config").get('config'),
     },
 
     /**
-     * Get user data by user id
-     * @param userId User ID
+     * Get user data by custom properties
+     * @param props Properties object for applying in WHERE SQL query
      * @returns Promise.<User>
      */
-    getUserById = function (userId) {
+    getUserBy = function (props) {
         return models.user.findOne({
-            where: {
-                id: userId
-            }
-        }).then(function (user) {
-            if (user) {
-                return user.get();
-            }
-            return promiseError('USER_NOT_FOUND');
-        });
-    },
-
-    /**
-     * Gets the user data by authKey
-     * @param authKey String authentication key for the API usage
-     * @returns Promise.<User> User data (full)
-     */
-    getUserByAuthKey = function (authKey) {
-        if (!authKey) {
-            return promiseError('NO_AUTHKEY');
-        }
-        return models.user.findOne({
-            where: {
-                authKey: authKey
-            }
-        }).then(function (user) {
-            if (user) {
-                return user.get();
-            }
-            return promiseError('USER_NOT_FOUND');
-        });
-    },
-
-    /**
-     * Gets the user data by authKey
-     * @param chatId String authentication key for the API usage
-     * @returns Promise.<User> User data (full)
-     */
-    getUserByTelegramChatId = function (chatId) {
-        if (!chatId) {
-            return promiseError('NO_CHATID');
-        }
-        return models.user.findOne({
-            where: {
-                telegramChatId: chatId
-            }
+            where: props
         }).then(function (user) {
             if (user) {
                 return user.get();
@@ -450,7 +406,7 @@ var config = require("config").get('config'),
             sendMail = true;
         }
 
-        return getUserById(userId).then(function (user) {
+        return getUserBy({id: userId}).then(function (user) {
             //TODO: add check whether a user can create new link or not (linkLimit, demoMode or something)
             return models.link.findOrCreate({
                 where: {
@@ -504,7 +460,7 @@ var config = require("config").get('config'),
      */
     updateLink = function (userId, linkId, runPeriod, sendMail) {
         console.log(runPeriod, sendMail);
-        return getUserById(userId).then(function (user) {
+        return getUserBy({id: userId}).then(function (user) {
             return models.link.update(
                 {
                     runPeriod: runPeriod,
@@ -530,7 +486,7 @@ var config = require("config").get('config'),
      * @returns Promise.<result> Resolves with {result} object, where result property contains 1 if the link was removed, 0 otherwise
      */
     removeLink = function (userId, linkId) {
-        return getUserById(userId).then(function (user) {
+        return getUserBy({id: userId}).then(function (user) {
             return models.link.destroy({
                 where: {
                     id: linkId,
@@ -552,7 +508,7 @@ var config = require("config").get('config'),
      * @returns Promise.<Link> Promise will resolve with the link data (filtered)
      */
     sendMailToLink = function (userId, linkId, sendMail) {
-        return getUserById(userId).then(function (user) {
+        return getUserBy({id: userId}).then(function (user) {
             return getLinkById(userId, linkId)
                 .then(function (link) {
                     link.sendMail = !!sendMail;
@@ -1288,31 +1244,29 @@ var config = require("config").get('config'),
     };
 
 module.exports = {
-    startup: startup,
-    getLinks: getLinks,
+    startup,
+    getLinks,
     getLinkById: getLinkByIdFiltered,
     createLink: createLinkFiltered,
-    runLinkById: runLinkById,
-    getLinkSequences: getLinkSequences,
-    updateLink: updateLink,
-    removeLink: removeLink,
-    sendMailToLink: sendMailToLink,
-    initQueue: initQueue,
-    checkQueue: checkQueue,
-    startQueue: startQueue,
-    stopQueue: stopQueue,
-    getCarById: getCarById,
-    getLinkCars: getLinkCars,
-    getLinkCarsRemoved: getLinkCarsRemoved,
-    getAddedCarsForSequence: getAddedCarsForSequence,
-    getRemovedCarsForSequence: getRemovedCarsForSequence,
-    getLatestAddedCarsForAllLinks: getLatestAddedCarsForAllLinks,
-    getLatestAddedCarsForLink: getLatestAddedCarsForLink,
-    createUser: createUser,
-    authenticateUser: authenticateUser,
-    getUserById: getUserById,
-    getUserByAuthKey: getUserByAuthKey,
-    getUserByTelegramChatId: getUserByTelegramChatId,
-    addUserTelegramChat: addUserTelegramChat,
-    removeUserTelegramChat: removeUserTelegramChat
+    runLinkById,
+    getLinkSequences,
+    updateLink,
+    removeLink,
+    sendMailToLink,
+    initQueue,
+    checkQueue,
+    startQueue,
+    stopQueue,
+    getCarById,
+    getLinkCars,
+    getLinkCarsRemoved,
+    getAddedCarsForSequence,
+    getRemovedCarsForSequence,
+    getLatestAddedCarsForAllLinks,
+    getLatestAddedCarsForLink,
+    createUser,
+    authenticateUser,
+    getUserBy,
+    addUserTelegramChat,
+    removeUserTelegramChat
 };

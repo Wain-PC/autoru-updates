@@ -14,7 +14,9 @@ db.startup().then(function (connection) {
             token = match[1];
 
         //check whether this token actually exists and belongs to some user
-        return db.getUserByAuthKey(token)
+        return db.getUserBy({
+            authKey: token
+        })
             .then(function (user) {
                 return db.addUserTelegramChat(user.id, chatId, fromId)
                     .then(function (res) {
@@ -85,5 +87,7 @@ db.startup().then(function (connection) {
 
 
 function activationCheck(chatId) {
-    return db.getUserByTelegramChatId(chatId)
+    return db.getUserByTelegramChatId({
+        telegramChatId: chatId
+    })
 }
