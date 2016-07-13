@@ -1,0 +1,40 @@
+{{>navbar}}
+
+{{#if message}}
+    {{>message type="info" message=message}}
+{{/if}}
+
+<div class="row">
+    <div class="col-md-6 col-md-offset-3">
+        <h2>Уведомления</h2>
+        <p>Активация уведомлений в Telegram</p>
+        {{#if user.telegramChatId}}
+            <p>Чат активирован.</p>
+            <a href="/settings/removetelegram">
+                <button class="btn btn-danger">Выключить</button>
+            </a>
+        {{else}}
+            <p>Чат не активирован.</p>
+            <a target="_blank" href="https://telegram.me/AutoWatchdogBot?start={{user.authKey}}">
+                <button class="btn btn-success">Включить</button>
+            </a>
+            <hr>
+            <p>
+                Или найдите в Telegram бота <b>AutoWatchdogBot</b><br>
+                и выполните команду <b>/start {{user.authKey}}</b>
+            </p>
+        {{/if}}
+
+        <hr class="col-md-12">
+
+        <h2>Time Zone Defaults</h2>
+        <p>All of the settings for time zone and daylight savings.
+        </p>
+        <hr class="col-md-12">
+
+        <h2>Diagnostics</h2>
+        <p>Run various diagnostics.</p>
+        <button class="btn" contenteditable="false">Run Network Diagnostic</button>
+    </div>
+    <div class="span9"></div>
+</div>
