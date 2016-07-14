@@ -137,7 +137,7 @@ var connection = db.startup().then(function (connection) {
         var login = req.body.login,
             password = req.body.password;
         if (login && password) {
-            return db.authenticateUser(login, password, false).then(function (user) {
+            return db.user.authenticate(login, password, false).then(function (user) {
                 req.session.userId = user.id;
                 req.session.save(function () {
                     res.redirect('/');
@@ -172,7 +172,7 @@ var connection = db.startup().then(function (connection) {
         var login = req.body.login,
             password = req.body.password;
         if (login && password) {
-            return db.createUser(login, password, true).then(function (user) {
+            return db.user.create(login, password, true).then(function (user) {
                 req.session.userId = user.id;
                 req.session.save(function () {
                     res.redirect('/');
@@ -196,7 +196,7 @@ var connection = db.startup().then(function (connection) {
 
 
     router.get('/', function (req, res, next) {
-        db.getLinks(req.session.userId).then(function (links) {
+        db.link.getAll(req.session.userId).then(function (links) {
             res.render('links', {links: links, message: req.session.message});
             delete req.session.message;
         });
@@ -205,7 +205,7 @@ var connection = db.startup().then(function (connection) {
     router.post('/links/add', function (req, res) {
         var url = req.body.url;
         if (url) {
-            return db.createLink(req.session.userId, url, req.body.sendmail === 'true').then(function (link) {
+            return db.link.create(req.session.userId, url, req.body.sendmail === 'true').then(function (link) {
                 if (link.id) {
                     req.session.message = 'Ссылка ' + link.id + ' успешно добавлена';
                     req.session.save(function () {
@@ -229,7 +229,7 @@ var connection = db.startup().then(function (connection) {
     router.get('/link/:linkId/cars', function (req, res) {
         var order = req.query.orderby,
             direction = req.query.direction;
-        db.getLinkCars(req.session.userId, req.params.linkId, order, direction).then(function (cars) {
+        db.link.getCars(req.session.userId, req.params.linkId, order, direction).then(function (cars) {
 
             res.render('cars', {
                 columns: carsTableColumns,
@@ -243,7 +243,7 @@ var connection = db.startup().then(function (connection) {
     router.get('/link/:linkId/settings', function (req, res) {
         var order = req.query.orderby,
             direction = req.query.direction;
-        db.getLinkById(req.session.userId, req.params.linkId).then(function (link) {
+        db.link.get(req.session.userId, req.params.linkId).then(function (link) {
 
             res.render('settings', {
                 link: link,
@@ -259,7 +259,7 @@ var connection = db.startup().then(function (connection) {
         var runPeriod = req.body.runperiod,
             sendMail = req.body.sendmail === 'true';
 
-        return db.updateLink(req.session.userId, req.params.linkId, runPeriod, sendMail)
+        return db.link.update(req.session.userId, req.params.linkId, runPeriod, sendMail)
             .then(function (response) {
                 if (response.result && response.result == 1) {
                     req.session.message = 'Параметры успешно обновлены для ссылки ' + req.params.linkId;
@@ -274,7 +274,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/latest', function (req, res) {
-        db.getLatestAddedCarsForAllLinks(req.session.userId).then(function (cars) {
+        db.car.getLatest(req.session.userId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
                 cars: carSorter(req, cars),
@@ -284,7 +284,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/link/:linkId/latest', function (req, res, next) {
-        db.getLatestAddedCarsForLink(req.session.userId, req.params.linkId).then(function (cars) {
+        db.link.getLatestCars(req.session.userId, req.params.linkId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
                 cars: carSorter(req, cars),
@@ -295,7 +295,7 @@ var connection = db.startup().then(function (connection) {
 
 
     router.get('/link/:linkId/remove', function (req, res, next) {
-        db.removeLink(req.session.userId, req.params.linkId).then(function (result) {
+        db.link.remove(req.session.userId, req.params.linkId).then(function (result) {
             req.session.message = 'Ссылка ' + req.params.linkId + ' успешно удалена';
             req.session.save(function () {
                 res.redirect('/');
@@ -304,7 +304,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/link/:linkId/update', function (req, res, next) {
-        db.runLinkById(req.session.userId, req.params.linkId).then(function (result) {
+        db.link.run(req.session.userId, req.params.linkId).then(function (result) {
             req.session.message = 'Обновление запланировано для ссылки ' + req.params.linkId;
             req.session.save(function () {
                 res.redirect('/');
@@ -313,7 +313,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/link/:linkId/sendmail', function (req, res, next) {
-        db.sendMailToLink(req.session.userId, req.params.linkId, !!req.params.sendmail).then(function (result) {
+        db.link.sendMail(req.session.userId, req.params.linkId, !!req.params.sendmail).then(function (result) {
             if (req.params.sendmail) {
                 req.session.message = 'Уведомления <b>включены</b> для ссылки ' + req.params.linkId;
             }
@@ -327,7 +327,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/link/:linkId/sequence', function (req, res, next) {
-        db.getLinkSequences(req.session.userId, req.params.linkId).then(function (sequences) {
+        db.link.getSequences(req.session.userId, req.params.linkId).then(function (sequences) {
             res.render('sequences', {
                 sequences: sequences
             });
@@ -335,7 +335,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
-        db.getAddedCarsForSequence(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
+        db.sequence.getCars(req.session.userId, req.params.linkId, req.params.sequenceId).then(function (cars) {
             res.render('cars', {
                 columns: carsTableColumns,
                 cars: carSorter(req, cars)
@@ -345,7 +345,7 @@ var connection = db.startup().then(function (connection) {
 
 
     router.get('/car/:carId', function (req, res, next) {
-        db.getCarById(req.session.userId, req.params.carId).then(function (car) {
+        db.car.get(req.session.userId, req.params.carId).then(function (car) {
             res.render('gallery', {
                 car: car
             });
@@ -353,7 +353,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/settings', function (req, res) {
-        db.getUserBy({id: req.session.userId}).then(function (user) {
+        db.user.get({id: req.session.userId}).then(function (user) {
             res.render('usersettings', {
                 user: user,
                 message: req.session.message
@@ -363,7 +363,7 @@ var connection = db.startup().then(function (connection) {
     });
 
     router.get('/settings/removetelegram', function (req, res) {
-        return db.removeUserTelegramChat(req.session.userId).then(function () {
+        return db.telegram.removeChat(req.session.userId).then(function () {
             req.session.message = 'Чат Telegram успешно удален';
         }, function () {
             req.session.message = 'Произошла ошибка при удалении чата Telegram';

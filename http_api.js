@@ -18,7 +18,7 @@ app.use(bodyParser.json());
 
 //Add a simple middleware function to check auth state
 function checkAuthByKey(req, res, next) {
-    return db.getUserBy({
+    return db.user.get({
         authKey: req.body.authkey
     })
         .then(function (user) {
@@ -58,7 +58,7 @@ router.post('/user/register', function (req, res) {
     var login = req.body.login,
         password = req.body.password;
     res.setHeader('Content-Type', 'application/json');
-    return db.createUser(login, password, false).then(function (result) {
+    return db.user.create(login, password, false).then(function (result) {
         res.end(JSON.stringify(result));
     }, function (error) {
         res.end(JSON.stringify(error));
@@ -71,7 +71,7 @@ router.post('/user/login', function (req, res) {
         password = req.body.password;
 
     res.setHeader('Content-Type', 'application/json');
-    return db.authenticateUser(login, password).then(function (result) {
+    return db.user.authenticate(login, password).then(function (result) {
         res.end(JSON.stringify(result));
     }, function (error) {
         res.end(JSON.stringify(error));
@@ -82,47 +82,47 @@ router.post('/user/login', function (req, res) {
 router.use(checkAuthByKey);
 
 router.post('/links', function (req, res, next) {
-    res.locals.response = db.getLinks(res.locals.user.id);
+    res.locals.response = db.link.get(res.locals.user.id);
     next();
 });
 
 router.post('/links/add', function (req, res, next) {
-    res.locals.response = db.createLink(res.locals.user.id, req.body.url);
+    res.locals.response = db.link.create(res.locals.user.id, req.body.url);
     next();
 });
 
 router.post('/link/:linkId', function (req, res, next) {
-    res.locals.response = db.getLinkById(res.locals.user.id, req.params.linkId);
+    res.locals.response = db.link.get(res.locals.user.id, req.params.linkId);
     next();
 });
 
 router.post('/link/:linkId/cars', function (req, res, next) {
-    res.locals.response = db.getLinkCars(res.locals.user.id, req.params.linkId);
+    res.locals.response = db.link.getCars(res.locals.user.id, req.params.linkId);
     next();
 });
 
 router.post('/link/:linkId/update', function (req, res, next) {
-    res.locals.response = db.runLinkById(res.locals.user.id, req.params.linkId);
+    res.locals.response = db.link.run(res.locals.user.id, req.params.linkId);
     next();
 });
 
 router.post('/link/:linkId/remove', function (req, res, next) {
-    res.locals.response = db.removeLink(res.locals.user.id, req.params.linkId);
+    res.locals.response = db.link.remove(res.locals.user.id, req.params.linkId);
     next();
 });
 
 router.post('/link/:linkId/sendmail', function (req, res, next) {
-    res.locals.response = db.sendMailToLink(res.locals.user.id, req.params.linkId, req.body.sendmail);
+    res.locals.response = db.link.sendMail(res.locals.user.id, req.params.linkId, req.body.sendmail);
     next();
 });
 
 router.post('/link/:linkId/sequence', function (req, res, next) {
-    res.locals.response = db.getLinkSequences(res.locals.user.id, req.params.linkId);
+    res.locals.response = db.link.getSequences(res.locals.user.id, req.params.linkId);
     next();
 });
 
 router.post('/link/:linkId/sequence/:sequenceId', function (req, res, next) {
-    res.locals.response = db.getAddedCarsForSequence(res.locals.user.id, req.params.linkId, req.params.sequenceId);
+    res.locals.response = db.sequence.getCars(res.locals.user.id, req.params.linkId, req.params.sequenceId);
     next();
 });
 

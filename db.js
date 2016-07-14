@@ -4,10 +4,7 @@ var config = require("config").get('config'),
     Sequelize = require("sequelize"),
     parser = require('./parser.js'),
     sequelize,
-    models = {
-        car: null,
-        link: null
-    },
+    models = {},
     runningJob = null,
 //check queue every 5 seconds
     queueCheckInterval = config.performance.queueCheckInterval,
@@ -77,12 +74,7 @@ var config = require("config").get('config'),
 
         models.sequence = sequelize.define('sequence', {
             linkId: {
-                type: Sequelize.INTEGER,
-                primaryKey: true
-            },
-            orderId: {
-                type: Sequelize.INTEGER,
-                primaryKey: true
+                type: Sequelize.INTEGER
             },
             carsAdded: {
                 type: Sequelize.INTEGER,
@@ -155,6 +147,13 @@ var config = require("config").get('config'),
             }
         });
 
+        models.telegramQueue = sequelize.define('telegram', {
+            sequenceId: {
+                type: Sequelize.INTEGER,
+                primaryKey: true //assuming we push notifications about each sequence only once
+            }
+        });
+
         //define many-to-one relationships
         //-----USER->LINK
         models.link.belongsTo(models.user, {
@@ -179,6 +178,11 @@ var config = require("config").get('config'),
             onDelete: 'cascade'
         });
         models.car.hasMany(models.image);
+
+        models.telegramQueue.belongsTo(models.sequence, {
+            onDelete: 'cascade'
+        });
+        models.sequence.hasMany(models.telegramQueue, {as: 'telegramQueue'});
 
         for (modelName in models) {
             if (models.hasOwnProperty(modelName)) {
@@ -521,7 +525,7 @@ var config = require("config").get('config'),
             .then(function (link) {
                 return createSequence(link.id)
                     .then(function (sequence) {
-                        link.currentSequence = sequence.orderId;
+                        link.currentSequence = sequence.id;
                         return link;
                     });
             });
@@ -568,36 +572,23 @@ var config = require("config").get('config'),
      * @returns Promise.<Sequence> Promise will resolve with the created sequence data (full)
      */
     createSequence = function (linkId) {
-        return models.sequence.max('orderId', {
-            where: {
-                linkId: linkId
-            }
-        }).then(function (max) {
-            if (!max) {
-                max = 0;
-            }
-
-            return models.sequence.create({
-                linkId: linkId,
-                orderId: max + 1
-            });
+        return models.sequence.create({
+            linkId: linkId
         });
     },
 
     /**
      * Updates the sequence when the parsing of the link finishes
-     * @param linkId ID of the link
-     * @param orderId ID of the sequence
+     * @param sequenceId ID of the sequence
      * @param carsAdded Number of cars added to the link during this sequence
      * @returns Promise.<Sequence> Promise will resolve with the sequence data (full)
      */
-    updateSequence = function (linkId, orderId, carsAdded) {
+    updateSequence = function (sequenceId, carsAdded) {
         return models.sequence.update({
             carsAdded: +carsAdded || 0
         }, {
             where: {
-                linkId: linkId,
-                orderId: orderId
+                id: sequenceId
             }
         }).then(function (sequences) {
             if (sequences && sequences.length) {
@@ -673,8 +664,7 @@ var config = require("config").get('config'),
     },
 
 
-
-    getAddedCarsForSequence = function (userId, linkId, sequenceOrderId) {
+    getAddedCarsForSequence = function (userId, linkId, sequenceId) {
         return models.link.findOne({
             where: {
                 id: linkId,
@@ -683,7 +673,7 @@ var config = require("config").get('config'),
             include: [{
                 model: models.sequence,
                 where: {
-                    orderId: sequenceOrderId
+                    id: sequenceId
                 }
             }]
         }).then(function (link) {
@@ -697,14 +687,11 @@ var config = require("config").get('config'),
             return models.car.findAll({
                 where: {
                     linkId: link.id,
-                    sequenceCreated: sequenceOrderId
+                    sequenceCreated: sequenceId
                 },
                 include: [models.image]
             });
         })
-            .then(function (cars) {
-                return cars;
-            })
     },
 
 
@@ -802,7 +789,7 @@ var config = require("config").get('config'),
                         }
                     }
                     //save stats to the sequence
-                    return updateSequence(link.id, link.currentSequence, outObj.length)
+                    return updateSequence(link.currentSequence, outObj.length)
                         .then(function () {
                             return outObj;
                         });
@@ -1023,7 +1010,7 @@ var config = require("config").get('config'),
                 })
                 .then(function (newCarsCounter) {
                     console.log("Update sequence now!");
-                    return updateSequence(link.id, link.currentSequence, newCarsCounter);
+                    return updateSequence(link.currentSequence, newCarsCounter);
                 })
 
                 .then(function () {
@@ -1142,30 +1129,88 @@ var config = require("config").get('config'),
      */
     promiseError = function (errText) {
         return Promise.reject({error: errText});
+    },
+
+    telegramQueuePush = function (sequenceId) {
+        return models.sequence.findOne({
+            where: {
+                id: sequenceId
+            }
+        })
+            .then(function (sequence) {
+                if (!sequence) {
+                    return promiseError('SEQUENCE_NOT_FOUND');
+                }
+                return models.telegramQueue.create({
+                    sequenceId: sequenceId
+                })
+            })
+
+    },
+
+    telegramQueuePop = function (sequenceId) {
+        return models.telegramQueue.findOne({
+            where: {
+                sequenceId: sequenceId
+            },
+            include: [models.sequence]
+        }).then(function (queueItem) {
+            if (queueItem === null) {
+                return promiseError('QUEUE_ITEM_NOT_FOUND');
+            }
+            if (!(queueItem.sequences && queueItem.sequences.length)) {
+                return promiseError('SEQUENCE_NOT_FOUND');
+            }
+
+            return queueItem.sequences[0];
+        })
+            .then(function (sequence) {
+                return models.car.findAll({
+                    where: {
+                        linkId: sequence.linkId,
+                        sequenceCreated: sequence.id
+                    },
+                    include: [models.image]
+                });
+            });
     };
 
 module.exports = {
     startup,
-    getLinks,
-    getLinkById: getLinkByIdFiltered,
-    createLink: createLinkFiltered,
-    runLinkById,
-    getLinkSequences,
-    updateLink,
-    removeLink,
-    sendMailToLink,
-    initQueue,
-    checkQueue,
-    startQueue,
-    stopQueue,
-    getCarById,
-    getLinkCars,
-    getAddedCarsForSequence,
-    getLatestAddedCarsForAllLinks,
-    getLatestAddedCarsForLink,
-    createUser,
-    authenticateUser,
-    getUserBy,
-    addUserTelegramChat,
-    removeUserTelegramChat
+    link: {
+        create: createLinkFiltered,
+        get: getLinkByIdFiltered,
+        getAll: getLinks,
+        getSequences: getLinkSequences,
+        run: runLinkById,
+        update: updateLink,
+        remove: removeLink,
+        sendMail: sendMailToLink,
+        getCars: getLinkCars,
+        getLatestCars: getLatestAddedCarsForLink
+    },
+    queue: {
+        init: initQueue,
+        check: checkQueue,
+        start: startQueue,
+        stop: stopQueue
+    },
+    car: {
+        get: getCarById,
+        getLatest: getLatestAddedCarsForAllLinks
+    },
+    sequence: {
+        getCars: getAddedCarsForSequence
+    },
+    user: {
+        get: getUserBy,
+        create: createUser,
+        authenticate: authenticateUser
+    },
+    telegram: {
+        addChat: addUserTelegramChat,
+        removeChat: removeUserTelegramChat,
+        push: telegramQueuePush,
+        pop: telegramQueuePop
+    }
 };
